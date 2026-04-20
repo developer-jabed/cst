@@ -1,13 +1,5 @@
+const LoginLayout = ({ children }: { children: React.ReactNode }) => {
+  return <>{children}</>;
+};
 
-
-// const commonLayout = ({ children }: { children: React.ReactNode }) => {
-//     return (
-//         <>
-//             <PublicNavbar/>
-//             {children}
-//             <PublicFooter/>
-//         </>
-//     );
-// };
-
-// export default commonLayout;
+export default LoginLayout;

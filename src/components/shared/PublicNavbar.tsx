@@ -1,13 +1,7 @@
-import { getDefaultDashboardRoute } from "@/lib/auth-utils";
 import Link from "next/link";
-import AISearchDialog from "./AISSearchDialog";
-import { getCookie } from "@/service/auth/tokenHandlers";
-import { getUserInfo } from "@/service/auth/getUserInfo";
-import MobileMenu from "./MobileMenu";
 import NavbarAuthButtons from "./NavbarAuthButtons";
 
-
-const PublicNavbar = async () => {
+const PublicNavbar = () => {
   const navItems = [
     { href: "/consultation", label: "Consultation" },
     { href: "/health-plans", label: "Health Plans" },
@@ -16,17 +10,11 @@ const PublicNavbar = async () => {
     { href: "/ngos", label: "NGOs" },
   ];
 
-  const accessToken = await getCookie("accessToken");
-  const userInfo = accessToken ? await getUserInfo() : null;
-  const dashboardRoute = userInfo
-    ? getDefaultDashboardRoute(userInfo.role)
-    : "/";
-
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur  dark:bg-background/95">
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur dark:bg-background/95">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center space-x-2">
-          <span className="text-xl font-bold text-primary">PH Doc</span>
+          <span className="text-xl font-bold text-primary">CST</span>
         </Link>
 
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
@@ -42,22 +30,9 @@ const PublicNavbar = async () => {
           ))}
         </nav>
 
-        <div className="hidden md:flex items-center space-x-2">
-          <AISearchDialog />
-          <NavbarAuthButtons
-            initialHasToken={!!accessToken}
-            initialUserInfo={userInfo}
-            initialDashboardRoute={dashboardRoute}
-          />
+        <div className="flex items-center space-x-2">
+          <NavbarAuthButtons />
         </div>
-
-        {/* Mobile Menu */}
-        <MobileMenu
-          navItems={navItems}
-          hasAccessToken={!!accessToken}
-          userInfo={userInfo}
-          dashboardRoute={dashboardRoute}
-        />
       </div>
     </header>
   );
