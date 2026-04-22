@@ -17,6 +17,7 @@ export const getUserInfo = async (): Promise<UserInfo | any> => {
         })
 
         const result = await response.json();
+   
 
         if (result.success) {
             const accessToken = await getCookie("accessToken");
@@ -35,6 +36,7 @@ export const getUserInfo = async (): Promise<UserInfo | any> => {
             }
         }
 
+
         userInfo = {
             name: result.data.admin?.name || result.data.student?.name || result.data.teacher?.name || result.data.name || "Unknown User",
             ...result.data
@@ -49,7 +51,7 @@ export const getUserInfo = async (): Promise<UserInfo | any> => {
             id: "",
             name: "Unknown User",
             email: "",
-            role: "PATIENT",
+            role: "STUDENT",
         };
     }
 

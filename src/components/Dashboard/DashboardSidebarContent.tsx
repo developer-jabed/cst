@@ -22,6 +22,7 @@ const DashboardSidebarContent = ({
 }: DashboardSidebarContentProps) => {
   const pathname = usePathname();
 
+
   return (
     <aside className="hidden md:flex h-screen w-64 flex-col border-r border-gray-200 bg-white">
 
