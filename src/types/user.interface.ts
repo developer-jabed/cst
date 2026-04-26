@@ -8,7 +8,7 @@ export interface UserInfo {
     email: string;
     role: UserRole;
     needPasswordChange: boolean;
-    status: "ACTIVE" | "INACTIVE" | "BANNED";
+    isDeleted: boolean;
     lastLogin: Date | null;
     admin?: any;
     cr?: any;
