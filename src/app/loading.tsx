@@ -21,7 +21,7 @@ export default function Loading() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
             >
-                Loading your awesome portfolio...
+                Loading your cstians...
             </motion.h1>
 
             {/* Progress Dots */}
