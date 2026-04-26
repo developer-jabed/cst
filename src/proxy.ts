@@ -1,7 +1,7 @@
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getDefaultDashboardRoute, getRouteOwner, isAuthRoute, UserRole } from './lib/auth-utils';
+import { getDefaultDashboardRoute, getRouteOwner, getUserDashboardRoute, isAuthRoute, UserRole } from './lib/auth-utils';
 import { getNewAccessToken } from './service/auth/auth.service';
 import { deleteCookie, getCookie } from './service/auth/tokenHandlers';
 import { getUserInfo } from './service/auth/getUserInfo';
@@ -95,6 +95,12 @@ export async function proxy(request: NextRequest) {
         return NextResponse.next();
     }
 
+    if (pathname === "/dashboard" || pathname === "/dashboard/") {
+        return NextResponse.redirect(
+            new URL(getUserDashboardRoute(userRole), request.url)
+        );
+    }
+
     // Rule 5 : User is trying to access role based protected route
     if (routerOwner === "ADMIN" || routerOwner === "TEACHER" || routerOwner === "STUDENT") {
         if (userRole !== routerOwner) {
@@ -109,7 +115,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
     matcher: [
-      
+
         '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.well-known).*)',
     ],
 }

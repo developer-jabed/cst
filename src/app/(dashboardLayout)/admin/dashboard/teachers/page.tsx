@@ -3,6 +3,8 @@
 import { getAllDepartments } from "@/service/department/department.service";
 import { getAllTeachers } from "@/service/admin/teacherManagement";
 import TeacherManagementClient from "@/components/modules/Admin/teacherManagement/teacherClient";
+export const dynamic = "force-dynamic";
+
 
 function normalizeList(res: any): any[] {
     if (!res) return [];

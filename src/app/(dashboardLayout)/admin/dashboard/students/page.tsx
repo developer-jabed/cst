@@ -7,6 +7,8 @@ import { getAllGroups } from "@/service/group/group.service";
 import { getStudents } from "@/service/student/student.service";
 import StudentManagementClient from "@/components/modules/Admin/studentManagement/StudentClient";
 
+export const dynamic = "force-dynamic";
+
 function normalizeList(res: any): any[] {
     if (!res) return [];
     if (Array.isArray(res)) return res;

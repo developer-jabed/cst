@@ -4,6 +4,8 @@ import ResultsClient from "@/components/modules/student/result";
 import { getAllResults } from "@/service/result/result.service";
 import { getResultByRoll } from "@/service/result/result.service";
 
+export const dynamic = "force-dynamic";
+
 interface Props {
   searchParams: Promise<{
     page?: string;

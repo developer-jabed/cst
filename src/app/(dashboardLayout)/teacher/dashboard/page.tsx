@@ -1,5 +1,5 @@
 import { getUserInfo } from '@/service/auth/getUserInfo'
-
+export const dynamic = "force-dynamic";
 
 export default async function page() {
   const teacher = await getUserInfo()

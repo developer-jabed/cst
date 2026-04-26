@@ -1,9 +1,10 @@
+import HomePage from '@/components/shared/HomePage'
 import React from 'react'
 export const dynamic = "force-dynamic";
-export default function page() {
+export default function home() {
   return (
     <div>
-      <h1>welcome to Classes</h1>
+      <HomePage />
     </div>
   )
 }
