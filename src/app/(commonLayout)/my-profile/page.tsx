@@ -3,6 +3,7 @@ import ProfileClient from "@/components/modules/MyProfile/MyProfile";
 import { getUserInfo } from "@/service/auth/getUserInfo";
 
 import { redirect } from "next/navigation";
+export const dynamic = "force-dynamic";
 
 export default async function MyProfilePage() {
   const user = await getUserInfo();
