@@ -1,7 +1,7 @@
 // app/my-profile/page.tsx
 import { getUserInfo } from "@/service/auth/getUserInfo";
 import ProfileClient from "../../../../components/modules/MyProfile/MyProfile";
-
+export const dynamic = "force-dynamic";
 export default async function MyProfilePage() {
   const user = await getUserInfo();
 
