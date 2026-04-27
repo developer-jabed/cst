@@ -331,3 +331,130 @@ export async function deleteStudent(id: number) {
         };
     }
 }
+
+
+export async function updateProfile(prevState: any, formData: FormData) {
+    try {
+        console.log("=== UPDATE PROFILE FORM DATA ===", Object.fromEntries(formData.entries()));
+
+        const role = formData.get("role") as string; 
+
+        if (!role || !["STUDENT", "TEACHER"].includes(role)) {
+            return {
+                success: false,
+                message: "Invalid user role",
+            };
+        }
+
+        // ── Build payload based on role ─────────────────────────────────────
+        const payload: Record<string, any> = {};
+
+        if (role === "TEACHER") {
+            const teacherFields = ["name", "mobile", "designation", "departmentId"];
+
+            for (const field of teacherFields) {
+                const val = formData.get(field);
+                if (val !== null && val !== "") {
+                    payload[field] = val;
+                }
+            }
+
+            // Wrap for backend
+            const backendPayload = {
+                teacher: payload
+            };
+
+            const newFormData = new FormData();
+            newFormData.append("data", JSON.stringify(backendPayload));
+
+            // Handle profile photo
+            const file = formData.get("file") as File | null;
+            if (file && file.size > 0) {
+                newFormData.append("file", file);
+            }
+
+            // Call the single update API
+            const response = await serverFetch.patch("/users/update-profile", {
+                body: newFormData,
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                revalidateTag("teacher-profile", "max");
+                revalidateTag(`teacher-${formData.get("id")}`, "max");
+                return {
+                    success: true,
+                    message: "Teacher profile updated successfully!",
+                };
+            }
+
+            return {
+                success: false,
+                message: result.message || "Failed to update teacher profile",
+                errors: result.errors || {},
+            };
+
+        } else if (role === "STUDENT") {
+            const studentFields = [
+                "name", "mobile", "gender", "birthDate", "birthnumber",
+                "nid", "fatherName", "motherName", "fatherMobile",
+                "motherMobile", "presentAddress", "permanentAddress",
+            ];
+
+            for (const field of studentFields) {
+                const val = formData.get(field);
+                if (val !== null && val !== "") {
+                    payload[field] = val;
+                }
+            }
+
+            // Wrap for backend (as expected by our API)
+            const backendPayload = {
+                student: payload
+            };
+
+            const newFormData = new FormData();
+            newFormData.append("data", JSON.stringify(backendPayload));
+
+            // Handle profile photo
+            const file = formData.get("file") as File | null;
+            if (file && file.size > 0) {
+                newFormData.append("file", file);
+            }
+
+            const response = await serverFetch.patch("/users/update-profile", {
+                body: newFormData,
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                revalidateTag("students-list", "max");
+                revalidateTag(`student-${formData.get("id") || "profile"}`, "max");
+                return {
+                    success: true,
+                    message: "Student profile updated successfully!",
+                };
+            }
+
+            return {
+                success: false,
+                message: result.message || "Failed to update student profile",
+                errors: result.errors || {},
+            };
+        }
+
+        return { success: false, message: "Invalid role" };
+
+    } catch (error: any) {
+        console.error("Update profile error:", error);
+
+        return {
+            success: false,
+            message: process.env.NODE_ENV === "development"
+                ? error.message
+                : "Something went wrong. Please try again.",
+        };
+    }
+}

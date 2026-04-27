@@ -124,6 +124,7 @@ export const adminNavItems: NavSection[] = [
         title: "Reports & Analytics",
         items: [
             { title: "Attendance Reports", href: "/admin/dashboard/attendance-reports", icon: "CheckSquare", roles: ["ADMIN"] },
+            { title: "Group Overview", href: "/admin/dashboard/group-overview", icon: "Overview", roles: ["ADMIN"] },
             { title: "Exam Results",       href: "/admin/dashboard/results",            icon: "BarChart",    roles: ["ADMIN"] },
             { title: "Idea Box",           href: "/admin/dashboard/idea-box",           icon: "Lightbulb",   roles: ["ADMIN"] },
         ],

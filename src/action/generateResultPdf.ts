@@ -21,5 +21,5 @@ export async function generateResultPdf(groups: any[]) {
 
   await browser.close();
 
-  return pdf; // 👈 return raw buffer (IMPORTANT)
+  return pdf;
 }
