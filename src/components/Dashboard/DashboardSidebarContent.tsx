@@ -40,7 +40,7 @@ const DashboardSidebarContent = ({
               DPI PROGRESS
             </span>
             <span className="text-[11px] text-gray-500">
-              Student Dashboard
+               Dashboard
             </span>
           </div>
 

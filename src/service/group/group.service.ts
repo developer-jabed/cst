@@ -13,17 +13,10 @@ export async function getAllGroups(params: {
   groupId?: string | number;
 }) {
   try {
-    const query = new URLSearchParams();
 
-    if (params.page) query.append('page', String(params.page));
-    if (params.limit) query.append('limit', String(params.limit));
-    if (params.searchTerm) query.append('searchTerm', params.searchTerm);
-    if (params.departmentId) query.append('departmentId', String(params.departmentId));
-    if (params.shiftId) query.append('shiftId', String(params.shiftId));
-    if (params.semesterId) query.append('semesterId', String(params.semesterId));
-    if (params.groupId) query.append('groupId', String(params.groupId));
+   
 
-    const response = await serverFetch.get(`/groups?${query.toString()}`);
+    const response = await serverFetch.get(`/groups`);
     const result = await response.json();
 
 

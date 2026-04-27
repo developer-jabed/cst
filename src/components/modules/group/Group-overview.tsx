@@ -1,7 +1,6 @@
 'use client';
 
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useCallback, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
 type Group = {
     id: number;
@@ -17,7 +16,7 @@ type Props = {
     initialData: {
         success: boolean;
         data: Group[];
-        meta: { page: number; limit: number; total: number };
+        total?: number;
     };
 };
 
@@ -29,23 +28,8 @@ const shiftBadge: Record<string, string> = {
 
 export default function GroupOverview({ initialData }: Props) {
     const router = useRouter();
-    const pathname = usePathname();
-    const searchParams = useSearchParams();
-    const [isPending, startTransition] = useTransition();
 
-    const { data: groups = [], meta } = initialData;
-    const totalPages = Math.ceil((meta?.total || 0) / (meta?.limit || 6));
-
-    const updateParam = useCallback(
-        (key: string, value: string) => {
-            const params = new URLSearchParams(searchParams.toString());
-            if (value) params.set(key, value);
-            else params.delete(key);
-            if (key !== 'page') params.delete('page');
-            startTransition(() => router.push(`${pathname}?${params.toString()}`));
-        },
-        [searchParams, pathname, router]
-    );
+    const { data: groups = [], total } = initialData;
 
     const goToGroup = (id: number) => {
         router.push(`group-overview/${id}`);
@@ -53,52 +37,25 @@ export default function GroupOverview({ initialData }: Props) {
 
     return (
         <div className="p-6">
+            {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h1 className="text-2xl font-medium">Group overview</h1>
-                    <p className="text-sm text-gray-500 mt-1">{meta?.total ?? 0} groups total</p>
+                    <p className="text-sm text-gray-500 mt-1">{total ?? groups.length} groups total</p>
                 </div>
             </div>
 
-
-            <input
-                type="text"
-                placeholder="Search groups..."
-                defaultValue={searchParams.get('searchTerm') ?? ''}
-                onChange={(e) => updateParam('searchTerm', e.target.value)}
-                className="w-full border rounded-lg px-4 py-2 mb-4 text-sm"
-            />
-
-            {/* Filters */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-                <select
-                    defaultValue={searchParams.get('departmentId') ?? ''}
-                    onChange={(e) => updateParam('departmentId', e.target.value)}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                >
-                    <option value="">All departments</option>
-                </select>
-                <select
-                    defaultValue={searchParams.get('semesterId') ?? ''}
-                    onChange={(e) => updateParam('semesterId', e.target.value)}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                >
-                    <option value="">All semesters</option>
-                </select>
-                <select
-                    defaultValue={searchParams.get('shiftId') ?? ''}
-                    onChange={(e) => updateParam('shiftId', e.target.value)}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                >
-                    <option value="">All shifts</option>
-                </select>
-            </div>
-
-            {/* Cards */}
-            {isPending ? (
-                <p className="text-center text-gray-400 py-10 text-sm">Loading...</p>
-            ) : groups.length === 0 ? (
-                <p className="text-center text-gray-400 py-10 text-sm">No groups found</p>
+            {groups.length === 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="border rounded-xl p-4 bg-white animate-pulse flex flex-col gap-3 h-44">
+                            <div className="h-4 bg-gray-100 rounded w-1/3" />
+                            <div className="h-4 bg-gray-100 rounded w-2/3" />
+                            <div className="h-4 bg-gray-100 rounded w-1/2" />
+                            <div className="mt-auto h-8 bg-gray-100 rounded" />
+                        </div>
+                    ))}
+                </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {groups.map((g) => (
@@ -119,10 +76,10 @@ export default function GroupOverview({ initialData }: Props) {
 
                             {/* Group identity */}
                             <div>
-                                <p className="font-medium text-[15px] text-gray-900"> {g.currentSemester.name}semester - {g.shift?.name}    Group {g.name}</p>
-                                <p className="text-xs text-gray-400 mt-0.5">
-                                    {g.department?.name} · Semester {g.currentSemester?.name}
+                                <p className="font-medium text-[15px] text-gray-900">
+                                    {g.currentSemester?.name} Semester · Group {g.name}
                                 </p>
+                                <p className="text-xs text-gray-400 mt-0.5">{g.department?.name}</p>
                             </div>
 
                             {/* Stats */}
@@ -148,24 +105,6 @@ export default function GroupOverview({ initialData }: Props) {
                                 </svg>
                             </button>
                         </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-                <div className="flex justify-end gap-2 mt-6">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                        <button
-                            key={p}
-                            onClick={() => updateParam('page', String(p))}
-                            className={`px-3 py-1 text-sm border rounded-lg transition-colors ${Number(searchParams.get('page') || 1) === p
-                                    ? 'bg-gray-100 font-medium border-gray-300'
-                                    : 'hover:bg-gray-50'
-                                }`}
-                        >
-                            {p}
-                        </button>
                     ))}
                 </div>
             )}

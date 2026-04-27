@@ -4,9 +4,10 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, LayoutDashboard, User, Menu, X } from "lucide-react";
+import { ChevronDown,  LayoutDashboard, User, Menu, X } from "lucide-react";
 import { getCookie } from "@/service/auth/tokenHandlers";
 import { getUserDashboardRoute } from "@/lib/auth-utils";
+import LogoutButton from "./LogoutButton";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -537,15 +538,7 @@ export default function PublicNavbar() {
 
                   <div style={{ height: "1px", background: "var(--rule)", margin: "4px 8px" }} />
 
-                  <button
-                    className="nav-dropdown-item red"
-                    onClick={() => {
-                      setLoggedIn(false);
-                      setDrop(false);
-                    }}
-                  >
-                    <LogOut size={16} /> Sign out
-                  </button>
+                  <LogoutButton/>
                 </div>
               </div>
             ) : (
@@ -587,31 +580,7 @@ export default function PublicNavbar() {
 
         <div className="drawer-footer">
           {loggedIn ? (
-            <button
-              onClick={() => {
-                setLoggedIn(false);
-                closeMobile();
-              }}
-              style={{
-                width: "100%",
-                padding: "14px",
-                border: "1px solid var(--rule)",
-                background: "none",
-                color: "#c2410c",
-                fontSize: "13px",
-                fontWeight: 500,
-                letterSpacing: "1px",
-                textTransform: "uppercase",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                borderRadius: "6px",
-                cursor: "pointer",
-              }}
-            >
-              <LogOut size={18} /> Sign Out
-            </button>
+            <LogoutButton/>
           ) : (
             <Link
               href="/login"
