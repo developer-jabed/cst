@@ -6,10 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "node -e \"if (process.env.NODE_ENV === 'production') console.log('Puppeteer-core setup ready')\""
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
+    "@sparticuz/chromium": "^147.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -17,7 +19,7 @@
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
-    "puppeteer": "^24.41.0",
+    "puppeteer-core": "^24.42.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -36,6 +38,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "puppeteer": "^24.42.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

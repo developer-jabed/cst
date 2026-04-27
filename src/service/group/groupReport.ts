@@ -1,6 +1,7 @@
 'use server';
 
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { getGroupById } from './group.service';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -58,8 +59,8 @@ function gpaCell(val: number | null): string {
 
 function statusBadge(status: string): string {
   const styles: Record<string, string> = {
-    PASSED:   'background:#d1fae5;color:#065f46',
-    FAILED:   'background:#fee2e2;color:#991b1b',
+    PASSED: 'background:#d1fae5;color:#065f46',
+    FAILED: 'background:#fee2e2;color:#991b1b',
     REFERRED: 'background:#fef3c7;color:#92400e',
   };
   const label = status.charAt(0) + status.slice(1).toLowerCase();
@@ -101,16 +102,16 @@ function buildHtml(group: Group, filterSemester?: string): string {
   const resultRows = results.length === 0
     ? `<tr><td colspan="13" style="text-align:center;color:#9ca3af;padding:40px">No results found</td></tr>`
     : results.map((r, i) => {
-        const student = r.studentId ? studentMap[r.studentId] : null;
-        const name = student?.name ?? '—';
-        const gpaCells = GPA_KEYS.map((k) => 
-          `<td style="text-align:center;padding:6px 4px;border:1px solid #cfe0d8">${gpaCell(r[k])}</td>`
-        ).join('');
+      const student = r.studentId ? studentMap[r.studentId] : null;
+      const name = student?.name ?? '—';
+      const gpaCells = GPA_KEYS.map((k) =>
+        `<td style="text-align:center;padding:6px 4px;border:1px solid #cfe0d8">${gpaCell(r[k])}</td>`
+      ).join('');
 
-        const refChips = (r.referredSubjects ?? []).map((c) => chip(c)).join('');
-        const failChips = (r.failedSubjects ?? []).map((c) => chip(c, true)).join('');
+      const refChips = (r.referredSubjects ?? []).map((c) => chip(c)).join('');
+      const failChips = (r.failedSubjects ?? []).map((c) => chip(c, true)).join('');
 
-        return `
+      return `
           <tr style="background:${i % 2 === 0 ? '#fff' : '#f8faf7'}">
             <td style="padding:6px 8px;border:1px solid #cfe0d8;text-align:center;color:#6b7280;font-size:9px">${i + 1}</td>
             <td style="padding:6px 8px;border:1px solid #cfe0d8;font-weight:600;font-size:10px">${name}</td>
@@ -120,7 +121,7 @@ function buildHtml(group: Group, filterSemester?: string): string {
             <td style="padding:6px 8px;border:1px solid #cfe0d8;text-align:center">${statusBadge(r.status)}</td>
             <td style="padding:6px 8px;border:1px solid #cfe0d8;font-size:9px">${refChips}${failChips || '<span style="color:#9ca3af">—</span>'}</td>
           </tr>`;
-      }).join('');
+    }).join('');
 
   // Subject Analysis
   const subjectCount: Record<string, { ref: number; fail: number }> = {};
@@ -255,7 +256,7 @@ function buildHtml(group: Group, filterSemester?: string): string {
               <th style="width:28px">Sl.</th>
               <th style="text-align:left">Name</th>
               <th style="width:72px">Roll</th>
-              ${GPA_KEYS.map(k => `<th style="width:38px">${k.replace('gpa','')}</th>`).join('')}
+              ${GPA_KEYS.map(k => `<th style="width:38px">${k.replace('gpa', '')}</th>`).join('')}
               <th style="width:46px">Avg</th>
               <th style="width:58px">Status</th>
               <th>Ref / Fail Subjects</th>
@@ -309,14 +310,15 @@ export async function generateDiplomaReport(
     const html = buildHtml(group, semester);
 
     browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     });
 
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
     await page.evaluateHandle('document.fonts.ready');
-    await new Promise(resolve => setTimeout(resolve, 1200)); 
+    await new Promise(resolve => setTimeout(resolve, 1200));
 
     const pdfBuffer = await page.pdf({
       format: 'A4',
@@ -334,7 +336,7 @@ export async function generateDiplomaReport(
     return { pdfBase64, filename };
   } catch (err) {
     console.error('[generateDiplomaReport]', err);
-    if (browser) await browser.close().catch(() => {});
+    if (browser) await browser.close().catch(() => { });
     return { error: err instanceof Error ? err.message : 'PDF generation failed' };
   }
 }

@@ -22,27 +22,31 @@ interface UserInfo {
   [key: string]: any;
 }
 
-type ViewTab  = "personal" | "academic" | "contact";
+type ViewTab = "personal" | "academic" | "contact";
 type ModalTab = "personal" | "academic" | "contact";
 
 export default function ProfileClient({ initialUser }: { initialUser: UserInfo }) {
-  const [user]          = useState(initialUser);
-  const [viewTab, setViewTab]   = useState<ViewTab>("personal");
-  const [isEditing, setIsEditing]     = useState(false);
-  const [modalTab, setModalTab]       = useState<ModalTab>("personal");
+  const [user] = useState(initialUser);
+  const [viewTab, setViewTab] = useState<ViewTab>("personal");
+  const [isEditing, setIsEditing] = useState(false);
+  const [modalTab, setModalTab] = useState<ModalTab>("personal");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [isSaving, setIsSaving]       = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
 
 
-  const fmt = (d?: string) =>
-    d ? new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "numeric" }).format(new Date(d)) : "—";
+  const fmt = (d?: string) => {
+    if (!d) return "—";
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return "—";
+    return new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "numeric" }).format(date);
+  };
   const toDate = (d?: string) => d ? new Date(d).toISOString().split("T")[0] : "";
 
-  const student  = user.student || {};
-    console.log(student)
+  const student = user.student || {};
+
   const initials = user.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
 
   const openEdit = () => { setIsEditing(true); setModalTab("personal"); setSaveSuccess(false); };
@@ -71,22 +75,22 @@ export default function ProfileClient({ initialUser }: { initialUser: UserInfo }
     }
   };
 
-  const viewTabs  = [
-    { key: "personal" as ViewTab,  label: "Personal",  Icon: User },
-    { key: "academic" as ViewTab,  label: "Academic",  Icon: GraduationCap },
-    { key: "contact"  as ViewTab,  label: "Contact",   Icon: Phone },
+  const viewTabs = [
+    { key: "personal" as ViewTab, label: "Personal", Icon: User },
+    { key: "academic" as ViewTab, label: "Academic", Icon: GraduationCap },
+    { key: "contact" as ViewTab, label: "Contact", Icon: Phone },
   ];
   const modalTabs = [
-    { key: "personal" as ModalTab, label: "Personal",  Icon: User },
-    { key: "academic" as ModalTab, label: "Academic",  Icon: GraduationCap },
-    { key: "contact"  as ModalTab, label: "Contact",   Icon: Phone },
+    { key: "personal" as ModalTab, label: "Personal", Icon: User },
+    { key: "academic" as ModalTab, label: "Academic", Icon: GraduationCap },
+    { key: "contact" as ModalTab, label: "Contact", Icon: Phone },
   ];
 
   return (
     <div className="pr-root">
       <div className="pr-wrap">
 
-        {/* Top bar */}
+
         <div className="pr-topbar pr-in">
           <div className="pr-breadcrumb">
             <span>Dashboard</span>
@@ -100,10 +104,10 @@ export default function ProfileClient({ initialUser }: { initialUser: UserInfo }
 
         <div className="pr-grid">
 
-          {/* ── SIDEBAR ── */}
+  
           <div className="pr-sidebar">
 
-            {/* Identity card */}
+
             <div className="pr-card pr-in pr-in-1">
               <div className="pr-idcard-stripe" />
               <div className="pr-idcard-body">
@@ -122,9 +126,9 @@ export default function ProfileClient({ initialUser }: { initialUser: UserInfo }
                 <div className="pr-stats">
                   {[
                     { label: "Roll No.", value: student.roll || "—", cls: "accent" },
-                    { label: "Status",   value: "Active",            cls: "green"  },
-                    { label: "Joined",   value: fmt(user.createdAt), cls: ""       },
-                    { label: "Year",     value: "2025–26",           cls: ""       },
+                    { label: "Status", value: "Active", cls: "green" },
+                    { label: "Joined", value: fmt(user.createdAt), cls: "" },
+                    { label: "Year", value: "2025–26", cls: "" },
                   ].map(({ label, value, cls }) => (
                     <div className="pr-stat" key={label}>
                       <div className="pr-stat-label">{label}</div>
@@ -137,7 +141,7 @@ export default function ProfileClient({ initialUser }: { initialUser: UserInfo }
               </div>
             </div>
 
-            {/* Digital ID */}
+
             <div className="pr-digid pr-in pr-in-2">
               <div className="pr-digid-label"><Fingerprint size={10} />Student ID</div>
               <div className="pr-digid-num">{student.roll || "——"}</div>
@@ -145,12 +149,12 @@ export default function ProfileClient({ initialUser }: { initialUser: UserInfo }
               <div className="pr-digid-valid"><Calendar size={10} />Valid until June 2027</div>
             </div>
 
-            {/* Activity */}
+  
             <div className="pr-card pr-in pr-in-3">
               <div className="pr-activity-title"><Clock size={13} />Recent Activity</div>
               <div className="pr-timeline">
                 {[
-                  { label: "Profile viewed",  time: "Just now",       active: true  },
+                  { label: "Profile viewed", time: "Just now", active: true },
                   { label: "Profile updated", time: fmt(user.updatedAt), active: false },
                   { label: "Account created", time: fmt(user.createdAt), active: false },
                 ].map((ev, i) => (
@@ -166,7 +170,6 @@ export default function ProfileClient({ initialUser }: { initialUser: UserInfo }
             </div>
           </div>
 
-          {/* ── MAIN PANEL ── */}
           <div className="pr-card pr-in pr-in-4">
             <div className="pr-panel-hd">
               <div className="pr-panel-title"><Users size={16} />Student Profile</div>
@@ -183,33 +186,33 @@ export default function ProfileClient({ initialUser }: { initialUser: UserInfo }
 
             {viewTab === "personal" && (
               <div className="pr-fields">
-                <Field label="Full Name"         value={student.name || user.name} />
-                <Field label="Gender"            value={student.gender} />
-                <Field label="Date of Birth"     value={fmt(student.birthDate)} />
-                <Field label="Date of Birth Number"     value={fmt(student.birthDateNumber)} />
-                <Field label="Nid"     value={fmt(student.nid)} />
-                <Field label="Father's Name"     value={student.fatherName} />
-                <Field label="Mother's Name"     value={student.motherName} />
-                <Field label="Last Updated"      value={fmt(user.updatedAt)} />
-                <Field label="Present Address"   value={student.presentAddress}   full />
+                <Field label="Full Name" value={student.name || user.name} />
+                <Field label="Gender" value={student.gender} />
+                <Field label="Date of Birth" value={fmt(student.birthDate)} />
+                <Field label="Date of Birth Number" value={fmt(student.birthDateNumber)} />
+                <Field label="Nid" value={fmt(student.nid)} />
+                <Field label="Father's Name" value={student.fatherName} />
+                <Field label="Mother's Name" value={student.motherName} />
+                <Field label="Last Updated" value={fmt(user.updatedAt)} />
+                <Field label="Present Address" value={student.presentAddress} full />
                 <Field label="Permanent Address" value={student.permanentAddress} full />
               </div>
             )}
             {viewTab === "academic" && (
               <div className="pr-fields">
-                <Field label="Roll Number"      value={student.roll}             mono />
-                <Field label="Registration No." value={student.registration}     mono />
-                <Field label="Department"       value={student.department?.name} sub={student.department?.shortName} />
-                <Field label="Group"            value={student.group?.name}      sub={`Session: ${student.group?.session || "—"}`} />
-                <Field label="Academic Year"    value="2025 – 2026" />
-                <Field label="Account Role"     value={user.role} />
+                <Field label="Roll Number" value={student.roll} mono />
+                <Field label="Registration No." value={student.registration} mono />
+                <Field label="Department" value={student.department?.name} sub={student.department?.shortName} />
+                <Field label="Group" value={student.group?.name} sub={`Session: ${student.group?.session || "—"}`} />
+                <Field label="Academic Year" value="2025 – 2026" />
+                <Field label="Account Role" value={user.role} />
               </div>
             )}
             {viewTab === "contact" && (
               <div className="pr-fields">
-                <Field label="Email Address"     value={user.email} />
-                <Field label="Mobile Number"     value={student.mobile} />
-                <Field label="Present Address"   value={student.presentAddress}   full />
+                <Field label="Email Address" value={user.email} />
+                <Field label="Mobile Number" value={student.mobile} />
+                <Field label="Present Address" value={student.presentAddress} full />
                 <Field label="Permanent Address" value={student.permanentAddress} full />
               </div>
             )}
@@ -217,7 +220,6 @@ export default function ProfileClient({ initialUser }: { initialUser: UserInfo }
         </div>
       </div>
 
-      {/* ── EDIT MODAL ── */}
       {isEditing && (
         <div className="em-backdrop" onClick={closeEdit}>
           <div className="em-modal" onClick={e => e.stopPropagation()}>
