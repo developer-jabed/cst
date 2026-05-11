@@ -26,7 +26,7 @@ export async function createSubjectGroup(prevState: any, formData: FormData) {
 
         if (result.success) {
             revalidateTag("subject-groups-list", "max-age=3600");
-            revalidateTag("subject-groups-page-1" , "max-age=3600");
+            revalidateTag("subject-groups-page-1", "max-age=3600");
             revalidateTag("admin-dashboard-meta", "max-age=3600");
 
             return {
@@ -90,14 +90,14 @@ export async function getSubjectGroups(params: {
 
         const result = await response.json();
 
-        // Normalize response (handles different backend structures)
-        const data = Array.isArray(result.data)
-            ? result.data
-            : Array.isArray(result)
-                ? result
-                : [];
+        // ✅ Log raw result BEFORE normalization to inspect real structure
+        console.log("RAW result:", JSON.stringify(result, null, 2));
 
-        const total = result.meta?.total || result.total || data.length;
+        // ✅ Normalize response — handles nested `data.data`, `data`, or root array
+        const rawData = result?.data?.data ?? result?.data ?? result;
+        const data = Array.isArray(rawData) ? rawData : [];
+
+        const total = result?.data?.meta?.total ?? result?.meta?.total ?? result?.total ?? data.length;
         const totalPages = Math.ceil(total / limit);
 
         return {
@@ -107,7 +107,7 @@ export async function getSubjectGroups(params: {
             totalPages,
             currentPage: page,
             limit,
-            meta: result.meta || {},
+            meta: result?.data?.meta ?? result?.meta ?? {},
         };
     } catch (error: any) {
         console.error("Get subject groups error:", error);

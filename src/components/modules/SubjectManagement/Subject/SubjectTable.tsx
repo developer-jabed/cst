@@ -33,7 +33,7 @@ interface SubjectsTablePageProps {
   semesters: any[];
   totalPages: number;
   currentPage: number;
-  // We no longer need to pass searchParams — we'll read it directly
+
 }
 
 export default function SubjectsTablePage({
@@ -43,7 +43,7 @@ export default function SubjectsTablePage({
   currentPage,
 }: SubjectsTablePageProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();   // ← This is the safe way
+  const searchParams = useSearchParams();  
   const [isPending, startTransition] = useTransition();
 
   const updateFilter = (key: string, value: string | null) => {

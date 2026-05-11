@@ -114,7 +114,7 @@ export async function getAllTeachers(query?: Record<string, any>) {
         const queryString = new URLSearchParams(cleanQuery).toString();
         const url = `/teachers${queryString ? `?${queryString}` : ""}`;
 
-        console.log("📡 [getAllTeachers] URL:", url);
+
 
         const res = await serverFetch.get(url, {
             next: {
@@ -127,7 +127,7 @@ export async function getAllTeachers(query?: Record<string, any>) {
         });
 
         const result = await res.json();
-        console.log("📦 [getAllTeachers] Result:", result);
+
 
         return result;
     } catch (error: any) {

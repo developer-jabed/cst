@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { createSubject } from "@/service/auth/subject/subject.service";
+import { createSubject } from "@/service/subject/subject.service";
 
 export default function CreateSubjectModal() {
   const [isOpen, setIsOpen] = useState(false);
