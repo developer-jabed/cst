@@ -1,9 +1,6 @@
 import {  NavSection } from "@/types/dashboard.interface";
 import { getDefaultDashboardRoute, UserRole } from "./auth-utils";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Common — visible to all roles
-// ─────────────────────────────────────────────────────────────────────────────
 export const getCommonNavItems = (role: UserRole): NavSection[] => {
     const defaultDashboard = getDefaultDashboardRoute(role);
     return [
@@ -23,10 +20,7 @@ export const getCommonNavItems = (role: UserRole): NavSection[] => {
     ];
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Student  (also visible to CR and TEACHER via roles[])
-// Sidebar renderer filters items by current user role — no duplication
-// ─────────────────────────────────────────────────────────────────────────────
+
 export const studentNavItems: NavSection[] = [
     {
         title: "Student Management",
@@ -39,10 +33,8 @@ export const studentNavItems: NavSection[] = [
     {
         title: "Institute Management",
         items: [
-            { title: "Report",   href: "/dashboard/student/report",   icon: "MessageCircleWarning", roles: ["STUDENT", "CR", "TEACHER"] },
             { title: "Notice",   href: "/dashboard/student/notice",   icon: "Bell",                 roles: ["STUDENT", "CR", "TEACHER"] },
             { title: "Events",   href: "/dashboard/student/events",   icon: "CalendarDays",         roles: ["STUDENT", "CR", "TEACHER"] },
-            { title: "Idea Box", href: "/dashboard/student/idea-box", icon: "Lightbulb",            roles: ["STUDENT", "CR", "TEACHER"] },
         ],
     },
     {
@@ -91,7 +83,6 @@ export const teacherNavItems: NavSection[] = [
         title: "Communication",
         items: [
             { title: "Notice Board", href: "/teacher/dashboard/notice", icon: "Bell",         roles: ["TEACHER"] },
-            { title: "Events",       href: "/teacher/dashboard/events", icon: "CalendarDays", roles: ["TEACHER"] },
         ],
     },
 ];
@@ -103,7 +94,6 @@ export const adminNavItems: NavSection[] = [
     {
         title: "User Management",
         items: [
-            { title: "Admins",   href: "/admin/dashboard/admins",   icon: "Shield",    roles: ["ADMIN"] },
             { title: "Teachers", href: "/admin/dashboard/teachers", icon: "UserCheck", roles: ["ADMIN"] },
             { title: "Students", href: "/admin/dashboard/students", icon: "Users",     roles: ["ADMIN"] },
         ],
@@ -124,7 +114,7 @@ export const adminNavItems: NavSection[] = [
             { title: "Attendance Reports", href: "/admin/dashboard/attendance-reports", icon: "CheckSquare", roles: ["ADMIN"] },
             { title: "Group Overview", href: "/admin/dashboard/group-overview", icon: "Overview", roles: ["ADMIN"] },
             { title: "Exam Results",       href: "/admin/dashboard/results",            icon: "BarChart",    roles: ["ADMIN"] },
-            { title: "Idea Box",           href: "/admin/dashboard/idea-box",           icon: "Lightbulb",   roles: ["ADMIN"] },
+            
         ],
     },
 ];
