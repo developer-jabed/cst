@@ -76,24 +76,22 @@ export const teacherNavItems: NavSection[] = [
     {
         title: "Class Management",
         items: [
-            { title: "My Classes",  href: "/dashboard/teacher/classes",     icon: "GraduationCap", roles: ["TEACHER"] },
-            { title: "Assignments", href: "/dashboard/teacher/assignments", icon: "ClipboardList", roles: ["TEACHER"] },
-            { title: "Routine",     href: "/dashboard/teacher/routine",     icon: "BookOpen",      roles: ["TEACHER"] },
+            { title: "Practicals & Jobs", href: "/teacher/dashboard/assignments", icon: "ClipboardList", roles: ["TEACHER"] },
+            { title: "Routine",     href: "/teacher/dashboard/routine",     icon: "BookOpen",      roles: ["TEACHER"] },
         ],
     },
     {
         title: "Student Oversight",
         items: [
-            { title: "Attendance",      href: "/dashboard/teacher/attendance",      icon: "CheckSquare", roles: ["TEACHER"] },
-            { title: "Results",         href: "/dashboard/teacher/results",         icon: "BarChart",    roles: ["TEACHER"] },
-            { title: "Student Reports", href: "/dashboard/teacher/student-reports", icon: "FileText",    roles: ["TEACHER"] },
+            { title: "Attendance",      href: "/teacher/dashboard/attendence",      icon: "CheckSquare", roles: ["TEACHER"] },
+            { title: "Student Reports", href: "/teache/dashboardr/student-reports", icon: "FileText",    roles: ["TEACHER"] },
         ],
     },
     {
         title: "Communication",
         items: [
-            { title: "Notice Board", href: "/dashboard/teacher/notice", icon: "Bell",         roles: ["TEACHER"] },
-            { title: "Events",       href: "/dashboard/teacher/events", icon: "CalendarDays", roles: ["TEACHER"] },
+            { title: "Notice Board", href: "/teacher/dashboard/notice", icon: "Bell",         roles: ["TEACHER"] },
+            { title: "Events",       href: "/teacher/dashboard/events", icon: "CalendarDays", roles: ["TEACHER"] },
         ],
     },
 ];
