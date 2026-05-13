@@ -16,7 +16,7 @@ export default async function Page({
     shiftId: searchParams.shiftId,
     semesterId: searchParams.semesterId,
   });
-  console.log(result)
+
 
   return <GroupOverview initialData={result} />;
 }

@@ -8,8 +8,7 @@ import { revalidateTag } from "next/cache";
 export async function createTeacher(prevState: any, formData: FormData) {
     try {
 
-        console.log("=== FORM DATA ===", Object.fromEntries(formData.entries()));
-
+  
         // ── Build validation payload ─────────────────────────────────────
         const validationPayload = {
             name: formData.get("name") as string,
@@ -23,8 +22,7 @@ export async function createTeacher(prevState: any, formData: FormData) {
 
         // ── Zod Validation ───────────────────────────────────────────────
         const validated = zodValidator(validationPayload, createTeacherZodSchema);
-        console.log("=== VALIDATED ===", validated);
-
+   
         if (!validated.success) {
             return {
                 success: false,
@@ -62,11 +60,8 @@ export async function createTeacher(prevState: any, formData: FormData) {
             body: newFormData,
         });
 
-        console.log("=== RESPONSE STATUS ===", response.status);
-
+    
         const result = await response.json();
-
-        console.log("=== RESULT ===", result);
 
         if (result.success) {
             revalidateTag("teachers-list", "max");

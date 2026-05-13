@@ -5,7 +5,6 @@ import { revalidateTag } from "next/cache";
 
 export async function createSubject(prevState: any, formData: FormData) {
   try {
-    console.log("=== FORM DATA ===", Object.fromEntries(formData.entries()));
 
     const backendPayload = {
       name: formData.get("name") as string,

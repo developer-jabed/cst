@@ -13,10 +13,7 @@ export const NOTICE_PRIORITY_LABELS: Record<NoticePriority, string> = {
 
 export const NOTICE_PRIORITY_OPTIONS = Object.entries(
   NOTICE_PRIORITY_LABELS,
-).map(([value, label]) => ({
-  value: value as NoticePriority,
-  label,
-}));
+).map(([value, label]) => ({ value: value as NoticePriority, label }));
 
 // ─────────────────────────────────────────────────────────────
 // Notice Audience Type
@@ -41,86 +38,70 @@ export const NOTICE_AUDIENCE_TYPE_LABELS: Record<NoticeAudienceType, string> = {
 
 export const NOTICE_AUDIENCE_TYPE_OPTIONS = Object.entries(
   NOTICE_AUDIENCE_TYPE_LABELS,
-).map(([value, label]) => ({
-  value: value as NoticeAudienceType,
-  label,
-}));
+).map(([value, label]) => ({ value: value as NoticeAudienceType, label }));
 
 // ─────────────────────────────────────────────────────────────
-// Create Notice Payload
+// Viewer Context Types
 // ─────────────────────────────────────────────────────────────
 
-export interface ICreateNoticePayload {
-  title: string;
-  description: string;
-
-  attachmentUrl?: string;
-
-  noticeDate?: string;
-  expiryDate?: string;
-
-  isPinned?: boolean;
-  isPublished?: boolean;
-
-  priority?: NoticePriority;
-  audienceType?: NoticeAudienceType;
-
-  departmentId?: number;
-  semesterId?: number;
+export interface IStudentViewerContext {
+  role: "student";
+  studentId: number;
   groupId?: number;
-  studentId?: number;
-
-  createdById?: number;
+  semesterId?: number;
+  departmentId?: number;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Update Notice Payload
-// ─────────────────────────────────────────────────────────────
-
-export interface IUpdateNoticePayload {
-  title?: string;
-  description?: string;
-
-  attachmentUrl?: string;
-
-  noticeDate?: string;
-  expiryDate?: string;
-
-  isPinned?: boolean;
-  isPublished?: boolean;
-
-  priority?: NoticePriority;
-  audienceType?: NoticeAudienceType;
-
+export interface ITeacherViewerContext {
+  role: "teacher";
+  teacherId: number;
   departmentId?: number;
-  semesterId?: number;
-  groupId?: number;
-  studentId?: number;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Notice Filter Params
-// ─────────────────────────────────────────────────────────────
-
-export interface INoticeFilterParams {
-  searchTerm?: string;
-
-  audienceType?: NoticeAudienceType;
-  priority?: NoticePriority;
-
-  departmentId?: number;
+export interface IGroupViewerContext {
+  role: "group";
+  groupId: number;
   semesterId?: number;
-  groupId?: number;
-  studentId?: number;
+  departmentId?: number;
+}
 
-  isPinned?: boolean;
-  isPublished?: boolean;
+export type IViewerContext =
+  | IStudentViewerContext
+  | ITeacherViewerContext
+  | IGroupViewerContext;
 
-  page?: number;
-  limit?: number;
+// ─────────────────────────────────────────────────────────────
+// Nested Relation Types
+// ─────────────────────────────────────────────────────────────
 
-  sortBy?: string;
-  sortOrder?: "asc" | "desc";
+export interface INoticeDepartment {
+  id: number;
+  name: string;
+}
+
+export interface INoticeSemester {
+  id: number;
+  name: string;
+}
+
+export interface INoticeGroup {
+  id: number;
+  name: string;
+}
+
+export interface INoticeStudent {
+  id: number;
+  name: string;
+}
+
+export interface INoticeTeacher {
+  id: number;
+  name: string;
+}
+
+export interface INoticeCreatedBy {
+  id: number;
+  name: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -134,7 +115,6 @@ export interface INotice {
   description: string;
 
   attachmentUrl?: string;
-
   noticeDate?: string;
   expiryDate?: string;
 
@@ -144,13 +124,98 @@ export interface INotice {
   priority: NoticePriority;
   audienceType: NoticeAudienceType;
 
+  // FK ids
   departmentId?: number;
   semesterId?: number;
   groupId?: number;
   studentId?: number;
-
+  teacherId?: number;
   createdById?: number;
+
+  // Populated relations
+  department?: INoticeDepartment | null;
+  semester?: INoticeSemester | null;
+  group?: INoticeGroup | null;
+  student?: INoticeStudent | null;
+  teacher?: INoticeTeacher | null;
+  createdBy?: INoticeCreatedBy | null;
 
   createdAt: string;
   updatedAt: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Create Notice Payload
+// ─────────────────────────────────────────────────────────────
+
+export interface ICreateNoticePayload {
+  title: string;
+  description: string;
+
+  attachmentUrl?: string;
+  noticeDate?: string;
+  expiryDate?: string;
+
+  isPinned?: boolean;
+  isPublished?: boolean;
+
+  priority?: NoticePriority;
+  audienceType?: NoticeAudienceType;
+
+  departmentId?: number;
+  semesterId?: number;
+  groupId?: number;
+  studentId?: number;
+  teacherId?: number;
+  createdById?: number;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Update Notice Payload
+// ─────────────────────────────────────────────────────────────
+
+export interface IUpdateNoticePayload {
+  title?: string;
+  description?: string;
+
+  attachmentUrl?: string;
+  noticeDate?: string;
+  expiryDate?: string;
+
+  isPinned?: boolean;
+  isPublished?: boolean;
+
+  priority?: NoticePriority;
+  audienceType?: NoticeAudienceType;
+
+  departmentId?: number;
+  semesterId?: number;
+  groupId?: number;
+  studentId?: number;
+  teacherId?: number;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Notice Filter Params (frontend)
+// ─────────────────────────────────────────────────────────────
+
+export interface INoticeFilterParams {
+  searchTerm?: string;
+
+  audienceType?: NoticeAudienceType;
+  priority?: NoticePriority;
+
+  departmentId?: number;
+  semesterId?: number;
+  groupId?: number;
+  studentId?: number;
+  teacherId?: number;
+
+  isPinned?: boolean;
+  isPublished?: boolean;
+
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }

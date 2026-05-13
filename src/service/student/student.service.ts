@@ -9,8 +9,6 @@ import { revalidateTag } from "next/cache";
 export async function createStudent(prevState: any, formData: FormData) {
     try {
 
-        console.log("=== FORM DATA ===", Object.fromEntries(formData.entries()));
-        // ── Build validation payload ─────────────────────────────────────
         const validationPayload = {
             name: formData.get("name") as string,
             email: formData.get("email") as string,
@@ -36,8 +34,7 @@ export async function createStudent(prevState: any, formData: FormData) {
 
         // ── Zod Validation ───────────────────────────────────────────────
         const validated = zodValidator(validationPayload, createStudentZodSchema);
-        console.log("=== VALIDATED ===", validated);
-
+   
         if (!validated.success) {
             return {
                 success: false,
@@ -89,12 +86,10 @@ export async function createStudent(prevState: any, formData: FormData) {
             body: newFormData,
         });
 
-        console.log("=== RESPONSE STATUS ===", response.status);
 
         const result = await response.json();
 
-        console.log("=== RESULT ===", result);
-
+  
         if (result.success) {
             revalidateTag("students-list", "max");
             revalidateTag("students-page-1", "max");
@@ -185,7 +180,6 @@ export async function getStudents(filters: StudentFilters = {}) {
         if (filters.limit)           params.set("limit", String(filters.limit));
 
         const queryString = params.toString();
-        console.log("📡 [getStudents] Calling API with:", `/students?${queryString}`);
 
         const response = await serverFetch.get(`/students?${queryString}`, {
             next: {
@@ -335,8 +329,7 @@ export async function deleteStudent(id: number) {
 
 export async function updateProfile(prevState: any, formData: FormData) {
     try {
-        console.log("=== UPDATE PROFILE FORM DATA ===", Object.fromEntries(formData.entries()));
-
+  
         const role = formData.get("role") as string; 
 
         if (!role || !["STUDENT", "TEACHER"].includes(role)) {

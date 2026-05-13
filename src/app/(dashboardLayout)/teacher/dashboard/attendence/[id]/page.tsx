@@ -27,7 +27,6 @@ export default async function GroupAttendancePage({
   const slot =
     group?.subjectGroups?.find((sg: any) => sg.subjectId === subjectId) ??
     group?.subjectGroups?.[0];
-  console.log(group);
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <AttendancePageTabs

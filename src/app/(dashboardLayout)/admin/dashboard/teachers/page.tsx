@@ -30,8 +30,7 @@ export default async function TeachersPage({ searchParams }: PageProps) {
     const page = Number(params.page ?? 1);
     const limit = Number(params.limit ?? 15);
 
-    console.log("📥 [TeachersPage] Raw Search Params:", params);
-
+  
     const [deptRes, teachersRes] = await Promise.all([
         getAllDepartments({ limit: 200 }),
         getAllTeachers({

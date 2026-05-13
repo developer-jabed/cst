@@ -5,8 +5,7 @@ import { revalidateTag } from "next/cache";
 
 export async function createSubjectGroup(prevState: any, formData: FormData) {
     try {
-        console.log("=== SUBJECT GROUP FORM DATA ===", Object.fromEntries(formData.entries()));
-
+    
         const backendPayload = {
             teacherId: Number(formData.get("teacherId")),
             subjectId: Number(formData.get("subjectId")),
@@ -90,9 +89,7 @@ export async function getSubjectGroups(params: {
 
         const result = await response.json();
 
-        // ✅ Log raw result BEFORE normalization to inspect real structure
-        console.log("RAW result:", JSON.stringify(result, null, 2));
-
+    
         // ✅ Normalize response — handles nested `data.data`, `data`, or root array
         const rawData = result?.data?.data ?? result?.data ?? result;
         const data = Array.isArray(rawData) ? rawData : [];

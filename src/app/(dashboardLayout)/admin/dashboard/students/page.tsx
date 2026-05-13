@@ -37,7 +37,6 @@ export default async function StudentsPage({ searchParams }: PageProps) {
     const page = Number(params.page ?? 1);
     const limit = Number(params.limit ?? 15);
 
-    console.log("📥 [StudentsPage] Raw Search Params (after await):", params);
 
     const [deptRes, shiftRes, semRes, groupRes, studentsRes] = await Promise.all([
         getAllDepartments({ limit: 200 }),
@@ -54,10 +53,6 @@ export default async function StudentsPage({ searchParams }: PageProps) {
         }),
     ]);
 
-    console.log("📦 [StudentsPage] Students Result:", {
-        total: (studentsRes as any)?.meta?.total,
-        dataLength: (studentsRes as any)?.data?.length || 0,
-    });
 
     return (
         <StudentManagementClient

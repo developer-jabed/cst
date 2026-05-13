@@ -13,7 +13,7 @@ export default async function GroupDetailPage({
   const { id } = await params;
   
   const result = await getGroupById(id);
-  console.log(result);
+
   if (!result?.success || !result?.data) return notFound();
   
   return <GroupDetailClient group={result.data} />;

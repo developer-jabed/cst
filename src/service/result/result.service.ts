@@ -31,15 +31,12 @@ export async function getAllResults(params: {
     if (params.instituteCode) query.append('instituteCode', params.instituteCode);
     if (params.examYear) query.append('examYear', String(params.examYear));
 
-    console.log("getAllResults query:", query.toString()); // debug
 
     const response = await serverFetch.get(`/results?${query.toString()}`);
 
-    console.log("getAllResults status:", response.status);
 
     const result = await response.json();
 
-    console.log("getAllResults response:", JSON.stringify(result, null, 2)); // debug
 
     return result;
   } catch (error: any) {

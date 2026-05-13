@@ -73,7 +73,7 @@ export function SessionHeader({
     hour: "2-digit",
     minute: "2-digit",
   });
-  console.log(meta.groupName)
+
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 shadow-xl">

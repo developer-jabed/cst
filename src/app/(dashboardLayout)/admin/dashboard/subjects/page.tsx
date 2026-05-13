@@ -72,7 +72,6 @@ export default async function SubjectGroupPage({ searchParams }: PageProps) {
   const totalPages    = getTotalPages(sgRes);
 
 
-  console.log(subjectGroups)
 
   return (
     <SubjectGroupClient

@@ -52,7 +52,6 @@ export default async function ResultsPage({ searchParams }: Props) {
 
 
 
-  console.log(rollRes)
   const results = (() => {
     if (!allRes) return [];
     if (Array.isArray(allRes)) return allRes;
@@ -63,7 +62,7 @@ export default async function ResultsPage({ searchParams }: Props) {
 
   const meta = allRes?.meta ?? allRes?.data?.meta ?? { page, limit, total: 0 };
 
-  console.log(meta)
+  
   return (
     <ResultsClient
       mode={mode}
