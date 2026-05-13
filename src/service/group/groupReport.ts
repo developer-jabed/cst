@@ -1,7 +1,5 @@
 'use server';
 
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium-min';
 import { getGroupById } from './group.service';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -46,24 +44,89 @@ type Group = {
 const GPA_KEYS = ['gpa1', 'gpa2', 'gpa3', 'gpa4', 'gpa5', 'gpa6', 'gpa7'] as const;
 
 /**
- * Returns the previous semester name given the current semester name.
+ * Finds the most recent published results for semester (currentOrder - 1).
+ *
+ * Strategy (in priority order):
+ *  1. Use currentSemester.order to derive target order = currentOrder - 1.
+ *  2. Among all diplomaResults, extract unique semesterNames and try to
+ *     detect their numeric order by scanning for digit/ordinal patterns.
+ *  3. Pick the semesterName whose detected order equals targetOrder AND
+ *     has the highest examYear (= most recently published).
+ *  4. If order detection fails entirely, fall back to the semesterName
+ *     that appears most in results but is NOT the current semester name
+ *     — i.e. the latest non-current result batch.
  */
-function getPreviousSemesterName(currentSemesterName: string): string | null {
-  const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
-  const banglaOrdinals = ['প্রথম', 'দ্বিতীয়', 'তৃতীয়', 'চতুর্থ', 'পঞ্চম', 'ষষ্ঠ', 'সপ্তম', 'অষ্টম'];
+function resolveTargetSemester(
+  allResults: { semesterName: string; examYear: number }[],
+  currentSemOrder: number,
+  currentSemName: string,
+): { semesterName: string; examYear: number } | null {
+  if (!allResults.length) return null;
 
-  for (let i = 1; i < ordinals.length; i++) {
-    if (
-      currentSemesterName.toLowerCase().includes(ordinals[i].toLowerCase()) ||
-      currentSemesterName.includes(banglaOrdinals[i])
-    ) {
-      const prevOrdinal = ordinals[i - 1];
-      return currentSemesterName
-        .replace(new RegExp(ordinals[i], 'i'), prevOrdinal)
-        .replace(banglaOrdinals[i], banglaOrdinals[i - 1]);
+  const targetOrder = currentSemOrder - 1;
+  if (targetOrder < 1) return null; // group is at 1st sem — no previous
+
+  // Extract all unique (semesterName, examYear) pairs
+  const pairs = [...new Map(
+    allResults.map((r) => [`${r.semesterName}|${r.examYear}`, r])
+  ).values()];
+
+  // ── Semester order detection ─────────────────────────────────────────────
+  // Handles: "4th Semester", "৪র্থ সেমিস্টার", "Semester 4", "4", etc.
+  const EN_ORDINALS: Record<string, number> = {
+    '1st': 1, 'first': 1,
+    '2nd': 2, 'second': 2,
+    '3rd': 3, 'third': 3,
+    '4th': 4, 'fourth': 4,
+    '5th': 5, 'fifth': 5,
+    '6th': 6, 'sixth': 6,
+    '7th': 7, 'seventh': 7,
+    '8th': 8, 'eighth': 8,
+  };
+  const BN_ORDINALS: Record<string, number> = {
+    '১ম': 1, 'প্রথম': 1,
+    '২য়': 2, 'দ্বিতীয়': 2,
+    '৩য়': 3, 'তৃতীয়': 3,
+    '৪র্থ': 4, 'চতুর্থ': 4,
+    '৫ম': 5, 'পঞ্চম': 5,
+    '৬ষ্ঠ': 6, 'ষষ্ঠ': 6,
+    '৭ম': 7, 'সপ্তম': 7,
+    '৮ম': 8, 'অষ্টম': 8,
+  };
+  // Map Bangla digits → Arabic
+  const normalizeBnDigits = (s: string) =>
+    s.replace(/[০-৯]/g, (d) => String('০১২৩৪৫৬৭৮৯'.indexOf(d)));
+
+  function detectOrder(name: string): number | null {
+    const lower = name.toLowerCase();
+    // English ordinals/words
+    for (const [token, ord] of Object.entries(EN_ORDINALS)) {
+      if (lower.includes(token)) return ord;
     }
+    // Bangla ordinals/words
+    for (const [token, ord] of Object.entries(BN_ORDINALS)) {
+      if (name.includes(token)) return ord;
+    }
+    // Plain digit (Arabic or Bangla): "Semester 4", "4th", "৪"
+    const normalized = normalizeBnDigits(name);
+    const m = normalized.match(/\b([1-8])\b/);
+    if (m) return parseInt(m[1], 10);
+    return null;
   }
-  return null;
+
+  // ── Pass 1: match by detected order == targetOrder ───────────────────────
+  const targetCandidates = pairs.filter((p) => detectOrder(p.semesterName) === targetOrder);
+
+  if (targetCandidates.length > 0) {
+    // Among matching names, pick the one with the highest examYear
+    return targetCandidates.sort((a, b) => b.examYear - a.examYear)[0];
+  }
+
+  // ── Pass 2: fallback — pick highest examYear result that isn't the current sem ─
+  // (handles exotic name formats we couldn't parse)
+  const nonCurrent = pairs.filter((p) => p.semesterName !== currentSemName);
+  if (!nonCurrent.length) return null;
+  return nonCurrent.sort((a, b) => b.examYear - a.examYear)[0];
 }
 
 function avgGpa(r: DiplomaResult): string {
@@ -117,12 +180,20 @@ function buildHtml(group: Group): string {
   const students = group.students ?? [];
   const studentMap = Object.fromEntries(students.map((s) => [s.id, s]));
 
-  const currentSemName  = group.currentSemester?.name ?? '';
-  const targetSemName   = getPreviousSemesterName(currentSemName);
+  const currentSemOrder = group.currentSemester?.order ?? 1;
+  const currentSemName  = group.currentSemester?.name  ?? '';
+  const allResults      = group.diplomaResults ?? [];
 
-  const results = (group.diplomaResults ?? []).filter((r) =>
-    targetSemName ? r.semesterName === targetSemName : true
-  );
+  // ── Resolve: which semester's results to show ────────────────────────────
+  // Priority: currentSemester.order - 1, matched against actual result records.
+  const target = resolveTargetSemester(allResults, currentSemOrder, currentSemName);
+
+  // Filter to ONLY that semester + examYear (the most recently published batch)
+  const results = target
+    ? allResults.filter(
+        (r) => r.semesterName === target.semesterName && r.examYear === target.examYear
+      )
+    : allResults; // fallback: show everything if resolution failed
 
   const total      = results.length;
   const passCount  = results.filter((r) => r.status === 'PASSED').length;
@@ -130,9 +201,9 @@ function buildHtml(group: Group): string {
   const referCount = results.filter((r) => r.status === 'REFERRED').length;
   const passRate   = total > 0 ? Math.round((passCount / total) * 100) : 0;
 
-  const displayCurrentSem  = currentSemName || '—';
-  const displayResultSem   = targetSemName  || '—';
-  const displayYear        = results[0]?.examYear ?? '—';
+  const displayCurrentSem = currentSemName          || '—';
+  const displayResultSem  = target?.semesterName    || '—';
+  const displayYear       = target?.examYear        ?? results[0]?.examYear ?? '—';
 
   const printDate = new Date().toLocaleString('en-BD', {
     dateStyle: 'long',
@@ -410,7 +481,8 @@ function buildHtml(group: Group): string {
 export async function generateDiplomaReport(
   groupId: number
 ): Promise<{ pdfBase64: string; filename: string } | { error: string }> {
-  let browser;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let browser: any;
   try {
     const response = await getGroupById(groupId);
     if (!response?.success || !response?.data) {
@@ -420,13 +492,28 @@ export async function generateDiplomaReport(
     const group = response.data as Group;
     const html  = buildHtml(group);
 
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(
-        'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
-      ),
-      headless: true,
-    });
+    const isDev = process.env.NODE_ENV === 'development';
+
+    if (isDev) {
+      // ── Local dev (Windows/Mac/Linux): use the full puppeteer package which
+      //    bundles its own Chromium — no download, no path issues.
+      //    Run:  npm install puppeteer --save-dev
+      const puppeteerFull = await import('puppeteer');
+      browser = await puppeteerFull.default.launch({ headless: true });
+    } else {
+      // ── Production (Vercel / serverless): use puppeteer-core + sparticuz chromium.
+      const [puppeteerCore, chromium] = await Promise.all([
+        import('puppeteer-core'),
+        import('@sparticuz/chromium-min'),
+      ]);
+      browser = await puppeteerCore.default.launch({
+        args: chromium.default.args,
+        executablePath: await chromium.default.executablePath(
+          'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+        ),
+        headless: true,
+      });
+    }
 
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
