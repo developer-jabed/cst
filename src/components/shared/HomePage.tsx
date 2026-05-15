@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+export const revalidate = 1800;
+
 export default function HomePage() {
   return (
     <main className="min-h-screen font-sans">
