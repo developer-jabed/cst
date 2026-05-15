@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, ChevronDown, LayoutDashboard, User } from "lucide-react";
+import { Menu, X, ChevronDown, LayoutDashboard } from "lucide-react";
 import { getCookie } from "@/service/auth/tokenHandlers";
 import { getUserDashboardRoute } from "@/lib/auth-utils";
 import LogoutButton from "./LogoutButton";
@@ -26,13 +26,11 @@ export default function PublicNavbar() {
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   const dashboardHref = userInfo?.role
     ? getUserDashboardRoute(userInfo.role)
     : "/dashboard";
 
-  console.log(userInfo);
   const initials = userInfo?.name
     ? userInfo.name
         .split(" ")
@@ -41,34 +39,26 @@ export default function PublicNavbar() {
         .toUpperCase()
     : "U";
 
-  // Fetch user info on mount
+  // Fetch user info
   useEffect(() => {
     const initializeUser = async () => {
       try {
         const token = await getCookie("accessToken");
-
         if (!token) {
           setLoggedIn(false);
           setUserInfo(null);
-          setLoading(false);
           return;
         }
 
         const data = await getUserInfo();
-
         if (data) {
           setLoggedIn(true);
           setUserInfo(data);
-        } else {
-          setLoggedIn(false);
-          setUserInfo(null);
         }
       } catch (error) {
         console.error("Failed to fetch user info:", error);
         setLoggedIn(false);
         setUserInfo(null);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -165,7 +155,6 @@ export default function PublicNavbar() {
                       <LayoutDashboard size={18} /> Dashboard
                     </Link>
 
-             
                     <div className="border-t my-1" />
                     <LogoutButton />
                   </div>
@@ -190,17 +179,18 @@ export default function PublicNavbar() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* ==================== MOBILE MENU ==================== */}
       {mobileOpen && (
         <div
           className="fixed inset-0 bg-black/70 z-[100] md:hidden"
           onClick={() => setMobileOpen(false)}
         >
           <div
-            className="bg-white w-[85%] max-w-md h-full ml-auto shadow-2xl"
+            className="bg-white w-[85%] max-w-md h-full ml-auto shadow-2xl overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6 flex justify-between items-center border-b">
+            {/* Mobile Header */}
+            <div className="p-6 flex justify-between items-center border-b sticky top-0 bg-white z-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center text-white font-bold">
                   DPI
@@ -214,6 +204,7 @@ export default function PublicNavbar() {
               </button>
             </div>
 
+            {/* Navigation Links */}
             <div className="p-6 flex flex-col gap-2">
               {NAV_LINKS.map((link) => (
                 <Link
@@ -229,8 +220,21 @@ export default function PublicNavbar() {
                   {link.label}
                 </Link>
               ))}
+
+              {/* Dashboard Link */}
+              {loggedIn && userInfo && (
+                <Link
+                  href={dashboardHref}
+                  className="flex items-center gap-3 py-4 px-6 text-lg font-medium rounded-2xl hover:bg-gray-50 transition-all"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <LayoutDashboard size={24} />
+                  Dashboard
+                </Link>
+              )}
             </div>
 
+            {/* Footer */}
             <div className="p-6 border-t mt-auto">
               {loggedIn ? (
                 <LogoutButton />
