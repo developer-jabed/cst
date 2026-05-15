@@ -1,102 +1,98 @@
 "use client";
 
-
 import InputFieldError from "@/components/shared/InputFieldError";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { loginUser } from "@/service/auth/loginUser";
 import { useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 
 const LoginForm = ({ redirect }: { redirect?: string }) => {
   const [state, formAction, isPending] = useActionState(loginUser, null);
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Local state for auto-filling credentials
-  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
 
+  // Show error toast
   useEffect(() => {
     if (state && !state.success && state.message) {
       toast.error(state.message);
     }
   }, [state]);
 
-  // Handler for auto-fill buttons
-  const handleAutoFill = (role: "teacher" | "cr" | "student" | "admin") => {
-    switch (role) {
-      
-      case "admin":
-        setFormData({ email: "jabed1780@gmail.com", password: "jabed1780" });
-        break;
-    }
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   return (
-    <form action={formAction}>
+    <form action={formAction} className="space-y-6">
       {redirect && <input type="hidden" name="redirect" value={redirect} />}
-      <FieldGroup>
-        <div className="grid grid-cols-1 gap-4">
-          {/* Email */}
-          <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="m@example.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            />
-            <InputFieldError field="email" state={state} />
-          </Field>
 
-          {/* Password */}
-          <Field>
-            <FieldLabel htmlFor="password">Password</FieldLabel>
+      <FieldGroup>
+        {/* Email Field */}
+        <Field>
+          <FieldLabel htmlFor="email">Email Address</FieldLabel>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="your@email.com"
+            value={formData.email}
+            onChange={handleInputChange}
+            required
+            className="h-12"
+          />
+          <InputFieldError field="email" state={state} />
+        </Field>
+
+        {/* Password Field with Toggle */}
+        <Field>
+          <FieldLabel htmlFor="password">Password</FieldLabel>
+          <div className="relative">
             <Input
               id="password"
               name="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Enter your password"
               value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onChange={handleInputChange}
+              required
+              className="h-12 pr-12"
             />
-            <InputFieldError field="password" state={state} />
-          </Field>
-        </div>
-
-        {/* Auto-fill Buttons */}
-        <div className="flex gap-2 mt-2">
-          <Button type="button" onClick={() => handleAutoFill("admin")}>
-            Admin
-          </Button>
-        </div>
-
-        <FieldGroup className="mt-4">
-          <Field>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Logging in..." : "Login"}
-            </Button>
-
-            <FieldDescription className="px-6 text-center">
-              Don&apos;t have an account?{" "}
-              <a href="/register" className="text-blue-600 hover:underline">
-                Sign up
-              </a>
-            </FieldDescription>
-            <FieldDescription className="px-6 text-center">
-              <a
-                href="/forget-password"
-                className="text-blue-600 hover:underline"
-              >
-                Forgot password?
-              </a>
-
-         
-            </FieldDescription>
-          </Field>
-        </FieldGroup>
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+          <InputFieldError field="password" state={state} />
+        </Field>
       </FieldGroup>
+
+      <Button
+        type="submit"
+        disabled={isPending}
+        className="w-full h-12 text-base font-semibold"
+      >
+        {isPending ? "Signing in..." : "Sign In"}
+      </Button>
+
+      <FieldDescription className="text-center text-sm text-gray-500">
+        Need help? Contact your administrator.
+      </FieldDescription>
     </form>
   );
 };

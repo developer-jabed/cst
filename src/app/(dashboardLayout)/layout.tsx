@@ -8,12 +8,20 @@ const CommonDashboardLayout = async ({
   children: React.ReactNode;
 }) => {
   return (
-    <div className="flex h-screen w-full overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden bg-gray-50">
+      {/* Sidebar */}
       <DashboardSidebar />
+
+      {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Navbar */}
         <DashboardNavbar />
-        <main className="flex-1 overflow-y-auto bg-muted/10">
-          <div className="w-full p-4 md:p-6">{children}</div>
+
+        {/* Scrollable Main Content */}
+        <main className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="mx-auto w-full max-w-screen-2xl px-4 py-6 md:px-6 lg:px-8">
+            {children}
+          </div>
         </main>
       </div>
     </div>

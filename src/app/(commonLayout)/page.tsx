@@ -1,7 +1,9 @@
 import HomePage from "@/components/shared/HomePage";
-export const dynamic = "force-dynamic";
 
-export default function home() {
+
+export const revalidate = 1800; 
+
+export default function Home() {
   return (
     <div>
       <HomePage />
