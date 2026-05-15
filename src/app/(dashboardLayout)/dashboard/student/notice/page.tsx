@@ -18,12 +18,12 @@ export default async function StudentNoticesPage({ searchParams }: PageProps) {
   const page = Number(searchParams.page) || 1;
   const tab = searchParams.tab || "feed";
 
-  const studentResult = await getUserInfo();
-  const student = studentResult.student;
+  const userResult = await getUserInfo();
+  const student = userResult?.student ?? null;
 
   const sharedParams = {
     searchTerm: searchParams.searchTerm || undefined,
-    priority: (searchParams.priority as any) || undefined,
+    priority: searchParams.priority as any, // or better: cast to NoticePriority
     sortBy: "createdAt",
     sortOrder: searchParams.sortOrder || "desc",
     page,
@@ -33,14 +33,14 @@ export default async function StudentNoticesPage({ searchParams }: PageProps) {
   const [feedResult, myNoticesResult] = await Promise.all([
     getNotices(sharedParams, {
       role: "student",
-      studentId: student?.id,
+      studentId: student?.id ?? 0,
       groupId: student?.group?.id,
-      semesterId: student?.semester?.id,
+      semesterId: student?.group?.currentSemester?.id,
       departmentId: student?.department?.id,
     }),
     getNotices({
       ...sharedParams,
-      studentId: student?.id,
+      studentId: student?.id ?? 0,
     }),
   ]);
 
