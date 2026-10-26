@@ -6,7 +6,7 @@ import { filterActiveNotices } from "@/lib/notices";
 
 import { getNotices } from "@/service/notice/notice.service";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic"; // ← add this
 
 export const metadata = {
   title: "Notices",
