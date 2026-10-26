@@ -1,8 +1,7 @@
 import BooklistClient from "@/components/modules/SubjectManagement/Subject/booklist/Booklist";
 import { getSubjectsGroupedBySemester } from "@/service/subject/subject.service";
 
-
-export const revalidate = 3600;
+export const dynamic = "force-dynamic"; // ← add this
 
 export const metadata = {
   title: "Course Catalog",

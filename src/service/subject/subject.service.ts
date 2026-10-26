@@ -184,11 +184,14 @@ export async function getSubjectsBySemester(
     }
 
     const queryString = queryParams.toString();
-    const url = `/subjects/books/semester/${semesterId}${
+    const url = `${process.env.NEXT_PUBLIC_API_URL}/subjects/books/semester/${semesterId}${
       queryString ? `?${queryString}` : ""
     }`;
 
-    const response = await serverFetch.get(url);
+    const response = await fetch(url, {
+      next: { revalidate: 3600 }, // cache for 1 hour
+      // cache: "force-cache", // alternative
+    });
 
     if (!response.ok) {
       throw new Error(
@@ -223,7 +226,6 @@ export async function getSubjectsBySemester(
     };
   }
 }
-
 export async function getSubjectById(id: number | string) {
   try {
     const response = await serverFetch.get(`/subjects/${id}`);
