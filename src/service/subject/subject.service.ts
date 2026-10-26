@@ -5,7 +5,6 @@ import { revalidateTag } from "next/cache";
 
 export async function createSubject(prevState: any, formData: FormData) {
   try {
-
     const backendPayload = {
       name: formData.get("name") as string,
       shortName: formData.get("shortName") as string,
@@ -17,7 +16,6 @@ export async function createSubject(prevState: any, formData: FormData) {
         : undefined,
     };
 
-    // ✅ Send clean JSON instead of FormData
     const response = await serverFetch.post("/subjects", {
       body: JSON.stringify(backendPayload),
       headers: {
@@ -36,16 +34,15 @@ export async function createSubject(prevState: any, formData: FormData) {
         success: true,
         message: "Subject created successfully!",
       };
-    } else {
-      return {
-        success: false,
-        message: result.message || "Failed to create subject",
-        errors: result.errors || {},
-      };
     }
+
+    return {
+      success: false,
+      message: result.message || "Failed to create subject",
+      errors: result.errors || {},
+    };
   } catch (error: any) {
     console.error("Create subject error:", error);
-
     return {
       success: false,
       message:
@@ -68,10 +65,10 @@ export async function getSubjects(
   try {
     const { search, departmentId, semesterId, page = 1, limit = 10 } = params;
 
-    // Build query string
     const queryParams = new URLSearchParams();
 
-    if (search) queryParams.append("search", search);
+    // Backend expects searchTerm (not search)
+    if (search) queryParams.append("searchTerm", search);
     if (departmentId) queryParams.append("departmentId", String(departmentId));
     if (semesterId) queryParams.append("semesterId", String(semesterId));
     queryParams.append("page", String(page));
@@ -88,27 +85,26 @@ export async function getSubjects(
 
     const result = await response.json();
 
-    // Normalize response (handle different possible structures)
     const subjects = Array.isArray(result.data)
       ? result.data
       : Array.isArray(result)
         ? result
         : [];
 
-    const total = result.total || result.meta?.total || subjects.length;
-    const totalPages = Math.ceil(total / limit);
+    const total = result.meta?.total ?? result.total ?? subjects.length;
+    const totalPages =
+      result.meta?.totalPages ?? Math.ceil(total / limit) ?? 1;
 
     return {
       success: true,
       data: subjects,
       total,
       totalPages,
-      currentPage: page,
-      limit,
+      currentPage: result.meta?.page ?? page,
+      limit: result.meta?.limit ?? limit,
     };
   } catch (error: any) {
     console.error("Get subjects error:", error);
-
     return {
       success: false,
       message:
@@ -119,6 +115,111 @@ export async function getSubjects(
       total: 0,
       totalPages: 1,
       currentPage: 1,
+    };
+  }
+}
+
+/** Semester-wise book list (all semesters grouped) */
+export async function getSubjectsGroupedBySemester(params?: {
+  departmentId?: string | number;
+  searchTerm?: string;
+}) {
+  try {
+    const queryParams = new URLSearchParams();
+
+    if (params?.departmentId) {
+      queryParams.append("departmentId", String(params.departmentId));
+    }
+    if (params?.searchTerm?.trim()) {
+      queryParams.append("searchTerm", params.searchTerm.trim());
+    }
+
+    const queryString = queryParams.toString();
+    const url = `/subjects/books/grouped${queryString ? `?${queryString}` : ""}`;
+
+    const response = await serverFetch.get(url);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch grouped subjects: ${response.statusText}`,
+      );
+    }
+
+    const result = await response.json();
+    const data = Array.isArray(result.data) ? result.data : [];
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (error: any) {
+    console.error("Get grouped subjects error:", error);
+    return {
+      success: false,
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Failed to fetch semester-wise books",
+      data: [],
+    };
+  }
+}
+
+/** Books of a single semester */
+export async function getSubjectsBySemester(
+  semesterId: number | string,
+  params?: {
+    departmentId?: string | number;
+    searchTerm?: string;
+  },
+) {
+  try {
+    const queryParams = new URLSearchParams();
+
+    if (params?.departmentId) {
+      queryParams.append("departmentId", String(params.departmentId));
+    }
+    if (params?.searchTerm?.trim()) {
+      queryParams.append("searchTerm", params.searchTerm.trim());
+    }
+
+    const queryString = queryParams.toString();
+    const url = `/subjects/books/semester/${semesterId}${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    const response = await serverFetch.get(url);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch semester subjects: ${response.statusText}`,
+      );
+    }
+
+    const result = await response.json();
+    const payload = result.data ?? result;
+
+    return {
+      success: true,
+      data: {
+        semester: payload.semester ?? null,
+        totalBooks: payload.totalBooks ?? payload.books?.length ?? 0,
+        books: Array.isArray(payload.books) ? payload.books : [],
+      },
+    };
+  } catch (error: any) {
+    console.error("Get subjects by semester error:", error);
+    return {
+      success: false,
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Failed to fetch semester books",
+      data: {
+        semester: null,
+        totalBooks: 0,
+        books: [],
+      },
     };
   }
 }
@@ -139,7 +240,6 @@ export async function getSubjectById(id: number | string) {
     };
   } catch (error: any) {
     console.error("Get subject by id error:", error);
-
     return {
       success: false,
       message:

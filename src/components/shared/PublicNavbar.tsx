@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ChevronDown, LayoutDashboard, Menu, X } from "lucide-react";
 
@@ -15,7 +17,9 @@ import { UserInfo } from "@/types/user.interface";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
-  { href: "/programs", label: "Programs" },
+  { href: "/result", label: "Results" },
+  { href: "/book", label: "Books List" },
+  { href: "/notice", label: "Notice" },
   { href: "/admission", label: "Admission" },
   { href: "/about", label: "About Us" },
   { href: "/contact", label: "Contact" },
@@ -32,25 +36,27 @@ export default function PublicNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // =========================
-  // USER INITIALS
+  // DISPLAY VALUES
   // =========================
-  const initials = useMemo(() => {
-    if (!userInfo?.name) return "U";
+  const displayName = userInfo?.name || "User";
+  const profilePhoto = userInfo?.profilePhoto || null;
 
-    return userInfo.name
+  const initials = useMemo(() => {
+    if (!displayName) return "U";
+
+    return displayName
       .split(" ")
       .map((name) => name[0])
       .join("")
       .slice(0, 2)
       .toUpperCase();
-  }, [userInfo]);
+  }, [displayName]);
 
   // =========================
   // DASHBOARD ROUTE
   // =========================
   const dashboardHref = useMemo(() => {
     if (!userInfo?.role) return "/dashboard";
-
     return getUserDashboardRoute(userInfo.role);
   }, [userInfo]);
 
@@ -97,7 +103,6 @@ export default function PublicNavbar() {
         }
       } catch (error) {
         console.error("Failed to fetch user:", error);
-
         setLoggedIn(false);
         setUserInfo(null);
       }
@@ -107,6 +112,22 @@ export default function PublicNavbar() {
   }, []);
 
   // =========================
+  // CLOSE DROPDOWN ON OUTSIDE CLICK
+  // =========================
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+
+      if (dropdownOpen && !target.closest(".user-dropdown-container")) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownOpen]);
+
+  // =========================
   // SCROLL EFFECT
   // =========================
   useEffect(() => {
@@ -114,13 +135,8 @@ export default function PublicNavbar() {
       setScrolled(window.scrollY > 20);
     };
 
-    window.addEventListener("scroll", handleScroll, {
-      passive: true,
-    });
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // =========================
@@ -151,17 +167,20 @@ export default function PublicNavbar() {
           <div className="h-20 flex items-center justify-between">
             {/* ========================= LOGO ========================= */}
             <Link href="/" className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center shadow-lg">
-                <span className="text-white text-lg font-bold tracking-tight">
-                  DPI
-                </span>
+              <div className="relative w-11 h-11 shrink-0">
+                <Image
+                  src="/dpi-logo.png"
+                  alt="Dinajpur Polytechnic Institute"
+                  fill
+                  className="object-contain"
+                  priority
+                />
               </div>
 
               <div className="hidden sm:block leading-tight">
                 <h1 className="text-lg lg:text-xl font-bold text-gray-900">
                   Dinajpur Polytechnic
                 </h1>
-
                 <p className="text-[9px] lg:text-[10px] tracking-[2px] text-gray-500 font-medium uppercase">
                   Computer Science & Technology
                 </p>
@@ -181,7 +200,6 @@ export default function PublicNavbar() {
                   }`}
                 >
                   {link.label}
-
                   {isActive(link.href) && (
                     <span className="absolute -bottom-2 left-0 w-full h-[2px] rounded-full bg-emerald-600" />
                   )}
@@ -193,20 +211,30 @@ export default function PublicNavbar() {
             <div className="flex items-center gap-3">
               {/* DESKTOP USER */}
               {loggedIn && userInfo ? (
-                <div className="relative hidden md:block">
+                <div className="relative hidden md:block user-dropdown-container">
                   <button
                     onClick={() => setDropdownOpen((prev) => !prev)}
                     className="flex items-center gap-3 rounded-full pl-3 pr-4 py-2 hover:bg-gray-100 transition-all duration-300"
                   >
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-white font-semibold">
-                      {initials}
-                    </div>
+                    {profilePhoto ? (
+                      <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                        <Image
+                          src={profilePhoto}
+                          alt={displayName}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-white font-semibold">
+                        {initials}
+                      </div>
+                    )}
 
                     <div className="text-left hidden lg:block">
                       <p className="text-sm font-semibold text-gray-900 leading-none">
-                        {userInfo.name}
+                        {displayName}
                       </p>
-
                       <p className="text-xs text-gray-500 mt-1 capitalize">
                         {userInfo.role}
                       </p>
@@ -220,17 +248,33 @@ export default function PublicNavbar() {
                     />
                   </button>
 
-                  {/* DROPDOWN */}
                   {dropdownOpen && (
                     <div className="absolute right-0 top-[120%] w-72 bg-white border border-gray-100 rounded-3xl shadow-2xl overflow-hidden z-50">
                       <div className="p-5 border-b">
-                        <p className="font-semibold text-gray-900">
-                          {userInfo.name}
-                        </p>
-
-                        <p className="text-sm text-gray-500 mt-1">
-                          {userInfo.email}
-                        </p>
+                        <div className="flex items-center gap-3 mb-3">
+                          {profilePhoto ? (
+                            <div className="relative w-12 h-12 rounded-full overflow-hidden">
+                              <Image
+                                src={profilePhoto}
+                                alt={displayName}
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-white font-semibold text-lg">
+                              {initials}
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              {displayName}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {userInfo.email}
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="p-2">
@@ -274,13 +318,11 @@ export default function PublicNavbar() {
       {/* ========================= MOBILE MENU ========================= */}
       {mobileOpen && (
         <div className="fixed inset-0 z-[100] md:hidden">
-          {/* OVERLAY */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
 
-          {/* DRAWER */}
           <div
             className="absolute right-0 top-0 h-full w-[85%] max-w-sm bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300"
             onClick={(e) => e.stopPropagation()}
@@ -289,15 +331,18 @@ export default function PublicNavbar() {
             <div className="p-5 border-b shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-white font-bold">
-                    DPI
+                  <div className="relative w-11 h-11 shrink-0">
+                    <Image
+                      src="/dpi-logo.png"
+                      alt="Dinajpur Polytechnic Institute"
+                      fill
+                      className="object-contain"
+                    />
                   </div>
-
                   <div>
                     <h2 className="font-bold text-gray-900 leading-none">
                       Dinajpur Polytechnic
                     </h2>
-
                     <p className="text-[10px] tracking-[2px] uppercase text-gray-500 mt-1">
                       CST Department
                     </p>
@@ -317,15 +362,25 @@ export default function PublicNavbar() {
             {loggedIn && userInfo && (
               <div className="px-5 py-5 border-b shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-white font-semibold">
-                    {initials}
-                  </div>
+                  {profilePhoto ? (
+                    <div className="relative w-12 h-12 rounded-full overflow-hidden">
+                      <Image
+                        src={profilePhoto}
+                        alt={displayName}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-white font-semibold">
+                      {initials}
+                    </div>
+                  )}
 
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-900 truncate">
-                      {userInfo.name}
+                      {displayName}
                     </p>
-
                     <p className="text-sm text-gray-500 truncate">
                       {userInfo.email}
                     </p>
@@ -352,7 +407,6 @@ export default function PublicNavbar() {
                   </Link>
                 ))}
 
-                {/* DASHBOARD */}
                 {loggedIn && userInfo && (
                   <Link
                     href={dashboardHref}

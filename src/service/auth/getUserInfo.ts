@@ -9,10 +9,10 @@ import { UserInfo } from "@/types/userInterface";
 export const getUserInfo = async (): Promise<UserInfo> => {
   try {
     const response = await serverFetch.get("/auth/me", {
-      cache: "force-cache", // Enable caching
+      cache: "force-cache",
       next: {
-        revalidate: 1800, // 30 minutes (1800 seconds)
-        tags: ["user-info"], // For manual revalidation if needed
+        revalidate: 1800,
+        tags: ["user-info"],
       },
     });
 
@@ -21,6 +21,23 @@ export const getUserInfo = async (): Promise<UserInfo> => {
     if (!result.success || !result.data) {
       throw new Error(result.message || "Failed to fetch user info");
     }
+
+    const data = result.data;
+
+    // Prefer nested values
+    const properName =
+      data.student?.name ||
+      data.teacher?.name ||
+      data.admin?.name ||
+      data.name ||
+      "Unknown User";
+
+    const profilePhoto =
+      data.student?.profilePhoto ||
+      data.teacher?.profilePhoto ||
+      data.admin?.profilePhoto ||
+      data.profilePhoto ||
+      null;
 
     // Get token for additional verification
     const accessToken = await getCookie("accessToken");
@@ -35,39 +52,31 @@ export const getUserInfo = async (): Promise<UserInfo> => {
         ) as JwtPayload;
 
         userInfo = {
-          id: verifiedToken.id || result.data.id,
-          name: verifiedToken.name || result.data.name || "Unknown User",
-          email: verifiedToken.email || result.data.email,
-          role: verifiedToken.role || result.data.role,
-          ...result.data,
+          id: verifiedToken.id || data.id,
+          name: properName,
+          email: verifiedToken.email || data.email,
+          role: verifiedToken.role || data.role,
+          profilePhoto, // ← added
+          ...data, // keep nested student / teacher / admin
         };
       } catch (jwtError) {
-        // Fallback if token verification fails
         userInfo = {
-          id: result.data.id,
-          name:
-            result.data.admin?.name ||
-            result.data.student?.name ||
-            result.data.teacher?.name ||
-            result.data.name ||
-            "Unknown User",
-          email: result.data.email,
-          role: result.data.role || "STUDENT",
-          ...result.data,
+          id: data.id,
+          name: properName,
+          email: data.email,
+          role: data.role || "STUDENT",
+          profilePhoto,
+          ...data,
         };
       }
     } else {
       userInfo = {
-        id: result.data.id,
-        name:
-          result.data.admin?.name ||
-          result.data.student?.name ||
-          result.data.teacher?.name ||
-          result.data.name ||
-          "Unknown User",
-        email: result.data.email,
-        role: result.data.role || "STUDENT",
-        ...result.data,
+        id: data.id,
+        name: properName,
+        email: data.email,
+        role: data.role || "STUDENT",
+        profilePhoto,
+        ...data,
       };
     }
 
@@ -75,12 +84,12 @@ export const getUserInfo = async (): Promise<UserInfo> => {
   } catch (error: any) {
     console.error("getUserInfo Error:", error);
 
-    // Return safe fallback
     return {
       id: "",
       name: "Unknown User",
       email: "",
       role: "STUDENT",
+      profilePhoto: null,
     } as UserInfo;
   }
 };

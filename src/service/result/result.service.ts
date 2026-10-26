@@ -14,6 +14,7 @@ export async function getAllResults(params: {
   examYear?: number | string;
   regulation?: string;
   instituteCode?: string;
+  subjectCode?: string; // NEW — filter results that referred/failed a specific subject
 }) {
   try {
     const query = new URLSearchParams();
@@ -30,15 +31,16 @@ export async function getAllResults(params: {
     if (params.regulation) query.append('regulation', params.regulation);
     if (params.instituteCode) query.append('instituteCode', params.instituteCode);
     if (params.examYear) query.append('examYear', String(params.examYear));
-
+    if (params.subjectCode) query.append('subjectCode', params.subjectCode);
 
     const response = await serverFetch.get(`/results?${query.toString()}`);
 
-
     const result = await response.json();
 
-
     return result;
+    // shape: { meta: { page, limit, total }, data: DiplomaResult[] }
+    // each DiplomaResult now also includes:
+    //   subjectBreakdown: { code, name, shortName, semesterName, semesterOrder, type }[]
   } catch (error: any) {
     console.error("getAllResults error:", error);
     return { success: false, message: error.message };
@@ -50,7 +52,8 @@ export async function getResultByRoll(roll: string) {
     const response = await serverFetch.get(`/results/${roll}`);
     const result = await response.json();
     // shape: DiplomaResult[] ordered by examYear desc,
-    // each with: student, semester, group relations
+    // each with: student, semester, group relations, and
+    //   subjectBreakdown: { code, name, shortName, semesterName, semesterOrder, type }[]
     return result;
   } catch (error: any) {
     return { success: false, message: error.message };
@@ -67,9 +70,34 @@ export async function getResultByRollAndSemester(
     const query = new URLSearchParams({ semesterName, examYear: String(examYear), regulation });
     const response = await serverFetch.get(`/results/${roll}/semester?${query.toString()}`);
     const result = await response.json();
-    // shape: single DiplomaResult with student, semester, group relations
+    // shape: single DiplomaResult with student, semester, group relations, and
+    //   subjectBreakdown: { code, name, shortName, semesterName, semesterOrder, type }[]
     return result;
   } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+// NEW — subject-wise referred/failed aggregate report.
+// e.g. "which subjects have the most referred students this year, by semester"
+export async function getSubjectWiseReport(params?: {
+  type?: 'REFERRED' | 'FAILED';
+  semesterName?: string;
+  examYear?: number;
+}) {
+  try {
+    const query = new URLSearchParams();
+    if (params?.type) query.append('type', params.type);
+    if (params?.semesterName) query.append('semesterName', params.semesterName);
+    if (params?.examYear) query.append('examYear', String(params.examYear));
+
+    const qs = query.toString();
+    const response = await serverFetch.get(`/results/subject-wise-report${qs ? `?${qs}` : ''}`);
+    const result = await response.json();
+    // shape: { code, name, semesterName, type, studentCount }[]
+    return result;
+  } catch (error: any) {
+    console.error("getSubjectWiseReport error:", error);
     return { success: false, message: error.message };
   }
 }

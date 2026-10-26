@@ -8,6 +8,7 @@ export interface UserInfo {
     email: string;
     role: UserRole;
     needPasswordChange: boolean;
+    profilePhoto: string | null;
     isDeleted: boolean;
     lastLogin: Date | null;
     admin?: any;

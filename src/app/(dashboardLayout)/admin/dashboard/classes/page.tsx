@@ -8,7 +8,6 @@ import { getAllTeachers } from "@/service/admin/teacherManagement";
 import { getSubjectGroups } from "@/service/subject/subjectGroup.service";
 import SubjectGroupsTablePage from "@/components/modules/SubjectManagement/SubjectGroup/SubjectGroup";
 
-
 export const dynamic = "force-dynamic";
 
 function normalizeList(res: any): any[] {
@@ -37,7 +36,6 @@ export default async function SubjectsPage({ searchParams }: PageProps) {
   const limit = Number(resolvedSearchParams.limit) || 10;
   const tab = resolvedSearchParams.tab ?? "subjects";
 
-  // Parallel data fetching
   const [
     subjectsResult,
     departmentsRes,
@@ -55,7 +53,7 @@ export default async function SubjectsPage({ searchParams }: PageProps) {
     }),
     getAllDepartments(),
     getAllSemesters({}),
-    getAllGroups({}),
+    getAllGroups({ all: true }),          // ← forces all groups
     getAllTeachers(),
     getSubjectGroups({ page, limit }),
   ]);
@@ -66,10 +64,14 @@ export default async function SubjectsPage({ searchParams }: PageProps) {
   const totalPages = subjectsResult.success ? subjectsResult.totalPages : 1;
   const currentPage = subjectsResult.success ? subjectsResult.currentPage : 1;
 
-  const groups = Array.isArray(groupsRes) ? groupsRes : [];
-  const teachers = Array.isArray(teachersRes) ? teachersRes : [];
-  const subjectGroups = subjectGroupsResult.success ? subjectGroupsResult.data : [];
-  const sgTotalPages = subjectGroupsResult.success ? subjectGroupsResult.totalPages : 1;
+  const groups = normalizeList(groupsRes);
+  const teachers = normalizeList(teachersRes);
+  const subjectGroups = subjectGroupsResult.success
+    ? subjectGroupsResult.data
+    : [];
+  const sgTotalPages = subjectGroupsResult.success
+    ? subjectGroupsResult.totalPages
+    : 1;
 
   return (
     <div className="p-6 space-y-6">

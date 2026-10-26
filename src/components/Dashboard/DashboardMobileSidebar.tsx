@@ -8,6 +8,7 @@ import { getIconComponent } from "@/lib/icon-mapper";
 import { cn } from "@/lib/utils";
 import { NavSection } from "@/types/dashboard.interface";
 import { UserInfo } from "@/types/userInterface";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -24,14 +25,41 @@ const DashboardMobileSidebar = ({
 }: DashboardMobileSidebarContentProps) => {
   const pathname = usePathname();
 
+  // Safe values
+  const displayName = userInfo?.name || "User";
+  const profilePhoto = userInfo?.profilePhoto || null;
+  const initials = displayName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {/* Logo */}
-      <div className="flex h-16 shrink-0 items-center border-b px-6">
-        <Link href={dashboardHome}>
-          <span className="text-xl font-bold text-primary">DPI PROGRESS</span>
+      <div className="flex h-16 shrink-0 items-center border-b px-5">
+        <Link href={dashboardHome} className="flex items-center gap-3">
+          <div className="relative h-9 w-9 shrink-0">
+            <Image
+              src="/dpi-logo.png"
+              alt="Dinajpur Polytechnic Institute"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+          <div className="leading-tight">
+            <span className="block text-sm font-bold text-primary">
+              DPI Progress
+            </span>
+            <span className="block text-[10px] text-muted-foreground tracking-wide">
+              Admin Panel
+            </span>
+          </div>
         </Link>
       </div>
+
       <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
 
       {/* Navigation — scrollable */}
@@ -71,7 +99,9 @@ const DashboardMobileSidebar = ({
                   );
                 })}
               </div>
-              {sectionIdx < navItems.length - 1 && <Separator className="my-4" />}
+              {sectionIdx < navItems.length - 1 && (
+                <Separator className="my-4" />
+              )}
             </div>
           ))}
         </nav>
@@ -80,15 +110,27 @@ const DashboardMobileSidebar = ({
       {/* User Info — fixed at bottom */}
       <div className="shrink-0 border-t p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-            <span className="text-sm font-semibold text-primary">
-              {userInfo.name.charAt(0).toUpperCase()}
-            </span>
-          </div>
+          {profilePhoto ? (
+            <div className="relative h-9 w-9 rounded-full overflow-hidden border border-gray-200">
+              <Image
+                src={profilePhoto}
+                alt={displayName}
+                fill
+                className="object-cover"
+              />
+            </div>
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+              <span className="text-sm font-semibold text-primary">
+                {initials}
+              </span>
+            </div>
+          )}
+
           <div className="flex-1 overflow-hidden">
-            <p className="truncate text-sm font-medium">{userInfo.name}</p>
+            <p className="truncate text-sm font-medium">{displayName}</p>
             <p className="text-xs capitalize text-muted-foreground">
-              {userInfo.role.toLowerCase()}
+              {userInfo.role?.toLowerCase() || "user"}
             </p>
           </div>
         </div>

@@ -104,6 +104,7 @@ export const adminNavItems: NavSection[] = [
             { title: "subjects", href: "/admin/dashboard/classes",  icon: "School",        roles: ["ADMIN"] },
             { title: "assigned subjects", href: "/admin/dashboard/subjects",  icon: "School",        roles: ["ADMIN"] },
             { title: "Routines",           href: "/admin/dashboard/routines", icon: "CalendarDays",  roles: ["ADMIN"] },
+            { title: "Promotions",         href: "/admin/dashboard/promotions", icon: "ArrowUpCircle", roles: ["ADMIN"] },
             { title: "Events",             href: "/admin/dashboard/events",   icon: "CalendarCheck", roles: ["ADMIN"] },
             { title: "Notice Board",       href: "/admin/dashboard/notice",   icon: "Bell",          roles: ["ADMIN"] },
         ],

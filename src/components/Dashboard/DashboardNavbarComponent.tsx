@@ -9,8 +9,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { NavSection } from "@/types/dashboard.interface";
-import { UserInfo } from "@/types/user.interface";
-import { Menu, GraduationCap, Bell } from "lucide-react";
+import { UserInfo } from "@/types/userInterface"; // ← use the same type file
+import { Menu, Bell } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import DashboardMobileSidebar from "./DashboardMobileSidebar";
@@ -66,15 +67,22 @@ const DashboardNavbarContent = ({
 
             {/* Logo Section */}
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg">
-                  <GraduationCap className="w-6 h-6 text-white" />
+              <div className="flex items-center gap-3">
+                <div className="relative w-10 h-10 shrink-0 rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
+                  <Image
+                    src="/dpi-logo.png"
+                    alt="Dinajpur Polytechnic Institute"
+                    fill
+                    className="object-contain p-1"
+                    priority
+                  />
                 </div>
-                <div>
-                  <div className="font-bold text-2xl tracking-tighter text-gray-900">
-                    DPI
+
+                <div className="leading-tight">
+                  <div className="font-bold text-xl tracking-tight text-gray-900">
+                    DPI Progress
                   </div>
-                  <p className="text-[10px] font-medium text-gray-500 -mt-1">
+                  <p className="text-[10px] font-medium text-gray-500 -mt-0.5">
                     DINAJPUR POLYTECHNIC
                   </p>
                 </div>
