@@ -4,6 +4,8 @@ import { getAllGroups } from "@/service/group/group.service";
 import { getAllSemesters } from "@/service/semester/semester.service";
 import { getStudents } from "@/service/student/student.service";
 
+export const dynamic = "force-dynamic"; // ← add this
+
 export const metadata = {
     title: "Promotions | Admin Dashboard",
     description: "Promote batches or individual students between semesters",
