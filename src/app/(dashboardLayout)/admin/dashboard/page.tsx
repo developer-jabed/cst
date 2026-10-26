@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import AdminDashboardClient from "@/components/modules/metaData/adminMetadata/adminMetaData";
 import { getAdminDashboard } from "@/service/meta/meta.service";
 
