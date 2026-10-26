@@ -4,8 +4,6 @@ import { getAdminDashboard } from "@/service/meta/meta.service";
 // ✅ Keep it dynamic because it's an authenticated admin page
 export const dynamic = "force-dynamic"; // Important: Do NOT use force-static
 
-// Optional: You can still revalidate every 40 minutes (background)
-export const revalidate = 2400; // 40 minutes
 
 export default async function AdminDashboardPage() {
   let dashboard = null;
@@ -13,7 +11,7 @@ export default async function AdminDashboardPage() {
   try {
     const data = await getAdminDashboard();
 
-    // Safe check
+
     if (
       data &&
       typeof data === "object" &&
