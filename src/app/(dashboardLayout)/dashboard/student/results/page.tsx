@@ -1,8 +1,5 @@
-
-
 import ResultsClient from "@/components/modules/student/result";
-import { getAllResults } from "@/service/result/result.service";
-import { getResultByRoll } from "@/service/result/result.service";
+import { getAllResults, getResultByRoll } from "@/service/result/result.service";
 
 export const dynamic = "force-dynamic";
 
@@ -32,25 +29,22 @@ export default async function ResultsPage({ searchParams }: Props) {
   const [allRes, rollRes] = await Promise.all([
     mode === "all"
       ? getAllResults({
-        page,
-        limit,
-        searchTerm: p.searchTerm ? p.searchTerm : undefined,
-        semesterName: p.semesterName ? p.semesterName : undefined,
-        examYear: p.examYear ? p.examYear : undefined,
-        regulation: p.regulation ? p.regulation : undefined,
-        status: p.status ? p.status : undefined,
-        sortBy: p.sortBy ? p.sortBy : "createdAt",
-        sortOrder: (p.sortOrder === "asc" || p.sortOrder === "desc")
-          ? p.sortOrder
-          : "desc",
-      })
+          page,
+          limit,
+          searchTerm: p.searchTerm || undefined,
+          semesterName: p.semesterName || undefined,
+          examYear: p.examYear || undefined,
+          regulation: p.regulation || undefined,
+          status: p.status || undefined,
+          sortBy: p.sortBy || "createdAt",
+          sortOrder:
+            p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
+        })
       : Promise.resolve(null),
     mode === "roll"
       ? getResultByRoll(roll).catch(() => null)
       : Promise.resolve(null),
   ]);
-
-
 
   const results = (() => {
     if (!allRes) return [];
@@ -62,12 +56,11 @@ export default async function ResultsPage({ searchParams }: Props) {
 
   const meta = allRes?.meta ?? allRes?.data?.meta ?? { page, limit, total: 0 };
 
-  
   return (
     <ResultsClient
       mode={mode}
-      results={results}          // ✅ use the normalized variable
-      meta={meta}                // ✅ use the normalized variable
+      results={results}
+      meta={meta}
       rollResults={Array.isArray(rollRes) ? rollRes : rollRes?.data ?? []}
       initialRoll={roll}
       page={page}

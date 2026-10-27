@@ -1,471 +1,56 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { Fragment, useMemo } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useState, useTransition, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition } from "react";
+import {
+  Search,
+  GraduationCap,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  Hash,
+  Calendar,
+  BookOpen,
+  Award,
+  User,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface Student {
-  id: number;
-  name: string;
-  roll: string;
-  registration: string;
-}
-interface Semester {
-  id: number;
-  name: string;
-  order: number;
-}
-interface Group {
-  id: number;
-  name: string;
-  session: string;
-}
-
-interface SubjectBreakdownItem {
-  code: string;
-  name: string;
-  shortName: string | null;
-  semesterName: string | null;
-  semesterOrder: number | null;
-  type: "REFERRED" | "FAILED";
-}
-
-interface DiplomaResult {
-  id: number;
-  roll: string;
-  studentId: number;
-  semesterId: number;
-  semesterName: string;
-  groupId: number;
-  examYear: number;
-  regulation: string;
-  instituteName: string;
-  instituteCode: string;
-  status: string;
-  gpa1: number | null;
-  gpa2: number | null;
-  gpa3: number | null;
-  gpa4: number | null;
-  gpa5: number | null;
-  gpa6: number | null;
-  gpa7: number | null;
-  failedSubjects: unknown[];
-  referredSubjects: unknown[];
-  subjectBreakdown?: SubjectBreakdownItem[];
-  isDeleted: boolean;
-  createdAt: string;
-  updatedAt: string;
-  student: Student;
-  semester: Semester | null;
-  group: Group | null;
-}
-
-interface Meta {
-  page: number;
-  limit: number;
-  total: number;
-}
-interface Filters {
-  searchTerm: string;
-  semesterName: string;
-  examYear: string;
-  regulation: string;
-  status: string;
+interface ResultItem {
+  _id?: string;
+  roll?: string;
+  name?: string;
+  semesterName?: string;
+  examYear?: string;
+  regulation?: string;
+  cgpa?: number | string;
+  gpa?: number | string;
+  status?: string;
+  totalCredit?: number;
+  [key: string]: any;
 }
 
 interface Props {
   mode: "all" | "roll";
-  results: DiplomaResult[];
-  meta: Meta;
-  rollResults: DiplomaResult[];
+  results: ResultItem[];
+  meta: { page: number; limit: number; total: number };
+  rollResults: ResultItem[];
   initialRoll: string;
   page: number;
-  filters: Filters;
-}
-
-// ── GPA helpers ───────────────────────────────────────────────────────────────
-const GPA_KEYS = ["gpa1", "gpa2", "gpa3", "gpa4", "gpa5", "gpa6", "gpa7"] as const;
-type GpaKey = (typeof GPA_KEYS)[number];
-
-function getSemesterGpa(r: DiplomaResult): number | null {
-  const order = r.semester?.order;
-  if (order && order >= 1 && order <= 7) {
-    return r[`gpa${order}` as GpaKey] ?? null;
-  }
-  return null;
-}
-
-function nonNullGpas(r: DiplomaResult) {
-  return GPA_KEYS.map((k, i) => ({
-    label: `Sem ${i + 1}`,
-    value: r[k],
-    order: i + 1,
-  })).filter((g) => g.value != null) as {
-    label: string;
-    value: number;
-    order: number;
-  }[];
-}
-
-function getBestGpaFromResults(results: DiplomaResult[]): number | null {
-  let best: number | null = null;
-  for (const r of results) {
-    for (const g of nonNullGpas(r)) {
-      if (best === null || g.value > best) best = g.value;
-    }
-  }
-  return best;
-}
-
-/** Count unique completed semesters from GPA fields (not result rows) */
-function countCompletedSemesters(results: DiplomaResult[]): number {
-  const set = new Set<number>();
-  results.forEach((r) => nonNullGpas(r).forEach((g) => set.add(g.order)));
-  return set.size;
-}
-
-function splitBreakdown(r: DiplomaResult) {
-  const list = r.subjectBreakdown ?? [];
-  return {
-    referred: list.filter((s) => s.type === "REFERRED"),
-    failed: list.filter((s) => s.type === "FAILED"),
-    referredCount: list.length
-      ? list.filter((s) => s.type === "REFERRED").length
-      : (r.referredSubjects?.length ?? 0),
-    failedCount: list.length
-      ? list.filter((s) => s.type === "FAILED").length
-      : (r.failedSubjects?.length ?? 0),
+  filters: {
+    searchTerm: string;
+    semesterName: string;
+    examYear: string;
+    regulation: string;
+    status: string;
   };
 }
 
-const STATUS: Record<
-  string,
-  { bg: string; text: string; border: string; dot: string }
-> = {
-  PASSED: { bg: "#f0fdf4", text: "#15803d", border: "#bbf7d0", dot: "#22c55e" },
-  FAILED: { bg: "#fff1f2", text: "#be123c", border: "#fecdd3", dot: "#f43f5e" },
-  REFERRED: { bg: "#fffbeb", text: "#b45309", border: "#fde68a", dot: "#f59e0b" },
-  WITHHELD: { bg: "#fffbeb", text: "#b45309", border: "#fde68a", dot: "#f59e0b" },
-  ABSENT: { bg: "#f8fafc", text: "#475569", border: "#e2e8f0", dot: "#94a3b8" },
-  INCOMPLETE: { bg: "#faf5ff", text: "#7e22ce", border: "#e9d5ff", dot: "#a855f7" },
-};
-
-const EMPTY_FILTERS: Filters = {
-  searchTerm: "",
-  semesterName: "",
-  examYear: "",
-  regulation: "",
-  status: "",
-};
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: string }) {
-  const c = STATUS[status] ?? STATUS.ABSENT;
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "4px 12px",
-        borderRadius: 999,
-        background: c.bg,
-        color: c.text,
-        border: `1px solid ${c.border}`,
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: ".04em",
-        whiteSpace: "nowrap",
-      }}
-    >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: c.dot,
-          flexShrink: 0,
-        }}
-      />
-      {status}
-    </span>
-  );
-}
-
-function GpaChip({ value, label }: { value: number | null; label: string }) {
-  const color =
-    value == null
-      ? "#94a3b8"
-      : value >= 3.5
-      ? "#15803d"
-      : value >= 2.5
-      ? "#0369a1"
-      : value >= 1.0
-      ? "#b45309"
-      : "#be123c";
-
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div
-        style={{
-          width: 62,
-          height: 62,
-          borderRadius: "50%",
-          border: `3px solid ${value != null ? color : "#e2e8f0"}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: value != null ? `${color}12` : "#f8fafc",
-          boxShadow: value != null ? `0 4px 12px ${color}20` : "none",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 14.5,
-            fontWeight: 800,
-            color,
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {value != null ? value.toFixed(2) : "—"}
-        </span>
-      </div>
-      <span
-        style={{
-          display: "block",
-          marginTop: 5,
-          fontSize: 10,
-          color: "#94a3b8",
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: ".05em",
-        }}
-      >
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function ProgressRing({ completed, total = 7 }: { completed: number; total?: number }) {
-  const size = 84;
-  const stroke = 7;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const progress = Math.min(completed / total, 1);
-  const offset = circumference * (1 - progress);
-
-  return (
-    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#1e40af"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 0.55s ease" }}
-        />
-      </svg>
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <span style={{ fontSize: 18, fontWeight: 800, color: "#1e40af", lineHeight: 1 }}>
-          {completed}
-        </span>
-        <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>/ {total}</span>
-      </div>
-    </div>
-  );
-}
-
-function GpaTrend({ results }: { results: DiplomaResult[] }) {
-  const points = useMemo(() => {
-    const map = new Map<number, number>();
-    results.forEach((r) => {
-      nonNullGpas(r).forEach((g) => map.set(g.order, g.value));
-    });
-    return Array.from(map.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([order, value]) => ({ order, value }));
-  }, [results]);
-
-  if (points.length < 2) return null;
-
-  return (
-    <div>
-      <p
-        style={{
-          margin: "0 0 10px",
-          fontSize: 11,
-          color: "#94a3b8",
-          textTransform: "uppercase",
-          letterSpacing: ".07em",
-          fontWeight: 700,
-        }}
-      >
-        GPA Trend
-      </p>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 70 }}>
-        {points.map((p) => {
-          const height = (p.value / 4) * 100;
-          const color =
-            p.value >= 3.5 ? "#22c55e" : p.value >= 2.5 ? "#3b82f6" : p.value >= 2 ? "#f59e0b" : "#f43f5e";
-          return (
-            <div
-              key={p.order}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#0f172a" }}>
-                {p.value.toFixed(2)}
-              </span>
-              <div
-                style={{
-                  width: "100%",
-                  maxWidth: 34,
-                  height: `${Math.max(height, 8)}%`,
-                  borderRadius: 8,
-                  background: `linear-gradient(180deg, ${color}, ${color}99)`,
-                }}
-              />
-              <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>S{p.order}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function SubjectChip({ subject }: { subject: SubjectBreakdownItem }) {
-  const isFailed = subject.type === "FAILED";
-  const color = isFailed ? "#be123c" : "#b45309";
-  const bg = isFailed ? "#fff1f2" : "#fffbeb";
-  const border = isFailed ? "#fecdd3" : "#fde68a";
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        background: bg,
-        border: `1px solid ${border}`,
-        borderRadius: 12,
-        padding: "8px 14px",
-        minWidth: 0,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: "monospace",
-          fontSize: 12,
-          fontWeight: 800,
-          color,
-          background: "#fff",
-          border: `1px solid ${border}`,
-          borderRadius: 8,
-          padding: "2px 8px",
-          flexShrink: 0,
-        }}
-      >
-        {subject.code}
-      </span>
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#1e293b",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {subject.name}
-        </div>
-        {subject.semesterName && (
-          <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, marginTop: 1 }}>
-            {subject.semesterName} Semester
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SubjectBreakdownBlock({ r }: { r: DiplomaResult }) {
-  const { referred, failed } = splitBreakdown(r);
-  if (!referred.length && !failed.length) return null;
-
-  return (
-    <div style={{ display: "grid", gap: 12 }}>
-      {failed.length > 0 && (
-        <div>
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontSize: 11,
-              color: "#be123c",
-              textTransform: "uppercase",
-              letterSpacing: ".07em",
-              fontWeight: 800,
-            }}
-          >
-            Failed Subjects ({failed.length})
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {failed.map((s) => (
-              <SubjectChip key={`${s.type}-${s.code}`} subject={s} />
-            ))}
-          </div>
-        </div>
-      )}
-      {referred.length > 0 && (
-        <div>
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontSize: 11,
-              color: "#b45309",
-              textTransform: "uppercase",
-              letterSpacing: ".07em",
-              fontWeight: 800,
-            }}
-          >
-            Referred Subjects ({referred.length})
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {referred.map((s) => (
-              <SubjectChip key={`${s.type}-${s.code}`} subject={s} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Main component ────────────────────────────────────────────────────────────
 export default function ResultsClient({
   mode,
   results,
@@ -476,1112 +61,489 @@ export default function ResultsClient({
   filters,
 }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
   const [rollInput, setRollInput] = useState(initialRoll);
-  const [filterState, setFilterState] = useState<Filters>(filters);
-  const [activeTab, setActiveTab] = useState<"all" | "roll">(mode);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [localFilters, setLocalFilters] = useState(filters);
 
-  const pushParams = useCallback(
-    (updates: Record<string, string>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      Object.entries(updates).forEach(([k, v]) =>
-        v ? params.set(k, v) : params.delete(k)
-      );
-      startTransition(() => router.push(`${pathname}?${params.toString()}`));
-    },
-    [pathname, router, searchParams]
-  );
+  const updateQuery = (updates: Record<string, string | number | undefined>) => {
+    const params = new URLSearchParams(searchParams.toString());
 
-  const handleTabSwitch = (tab: "all" | "roll") => {
-    setActiveTab(tab);
-    setFilterState(EMPTY_FILTERS);
-    setRollInput("");
-    setExpandedId(null);
-    pushParams({ ...EMPTY_FILTERS, roll: "", page: "1" });
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === "" || value === null) {
+        params.delete(key);
+      } else {
+        params.set(key, String(value));
+      }
+    });
+
+    if (!("page" in updates)) params.set("page", "1");
+
+    startTransition(() => {
+      router.push(`?${params.toString()}`);
+    });
   };
 
-  const handleRollSearch = () => {
+  const handleSearchByRoll = () => {
     if (!rollInput.trim()) return;
-    pushParams({ roll: rollInput.trim(), page: "1", ...EMPTY_FILTERS });
+    updateQuery({ roll: rollInput.trim(), page: 1 });
   };
 
-  const handleFilter = () => {
-    pushParams({ ...filterState, roll: "", page: "1" });
+  const clearRoll = () => {
+    setRollInput("");
+    updateQuery({ roll: undefined, page: 1 });
   };
 
-  const handleClear = () => {
-    setFilterState(EMPTY_FILTERS);
-    pushParams({ ...EMPTY_FILTERS, roll: "", page: "1" });
+  const applyFilters = () => {
+    updateQuery({
+      searchTerm: localFilters.searchTerm || undefined,
+      semesterName: localFilters.semesterName || undefined,
+      examYear: localFilters.examYear || undefined,
+      regulation: localFilters.regulation || undefined,
+      status: localFilters.status || undefined,
+      page: 1,
+    });
   };
 
-  const totalPages = Math.ceil(meta.total / meta.limit);
+  const totalPages = Math.max(1, Math.ceil((meta.total || 0) / (meta.limit || 15)));
 
-  // ✅ Fixed stats for roll tab
-  const rollStats = useMemo(() => {
-    if (!rollResults.length) return null;
-    const completed = countCompletedSemesters(rollResults);
-    return {
-      completed,
-      passed: completed,
-      failed: rollResults.filter((r) => r.status === "FAILED").length,
-      best: getBestGpaFromResults(rollResults),
-    };
-  }, [rollResults]);
+  return (
+    <div className=" min-h-[calc(100vh-4rem)]">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-7">
+          <div className=" mb-2.5 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Results
+          </div>
+          <h1 className="font-serif text-3xl font-bold tracking-tight text-foreground sm:text-[2.1rem]">
+            My Results
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            View your semester-wise academic performance
+          </p>
+        </div>
+
+        {/* Main panel — highly transparent + blurred so outer texture shows */}
+        <div
+          className={cn(
+            "overflow-hidden rounded-[1.4rem]",
+            "border border-white/50 dark:border-white/10",
+            "bg-white/35 dark:bg-card/30",
+            "backdrop-blur-2xl",
+            "shadow-[0_8px_32px_rgba(11,31,26,0.08)]"
+          )}
+        >
+          {/* Toolbar */}
+          <div className="flex flex-col gap-4 border-b border-white/40 dark:border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            {/* Mode pills */}
+            <div className="flex items-center gap-1 rounded-full bg-black/5 dark:bg-white/5 p-1">
+              <button
+                onClick={() => updateQuery({ roll: undefined, page: 1 })}
+                className={cn(
+                  "rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                  mode === "all"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All Results
+              </button>
+              <button
+                onClick={() => {
+                  if (rollInput) updateQuery({ roll: rollInput, page: 1 });
+                }}
+                className={cn(
+                  "rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                  mode === "roll"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                By Roll
+              </button>
+            </div>
+
+            {/* Roll search */}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Hash
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  strokeWidth={1.75}
+                />
+                <input
+                  value={rollInput}
+                  onChange={(e) => setRollInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearchByRoll()}
+                  placeholder="Enter roll number"
+                  className="h-9 w-44 rounded-full border border-white/50 dark:border-white/10 bg-white/25 dark:bg-white/5 pl-9 pr-3 text-sm outline-none backdrop-blur-sm transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <button
+                onClick={handleSearchByRoll}
+                disabled={isPending || !rollInput.trim()}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+              >
+                {isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
+                ) : (
+                  <Search className="h-4 w-4" strokeWidth={1.75} />
+                )}
+                Search
+              </button>
+              {mode === "roll" && (
+                <button
+                  onClick={clearRoll}
+                  className="h-9 rounded-full border border-white/50 dark:border-white/10 bg-white/20 dark:bg-white/5 px-3 text-sm text-muted-foreground transition hover:bg-white/30"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filters */}
+          {mode === "all" && (
+            <div className="flex flex-wrap items-end gap-3 border-b border-white/30 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-5 py-3.5">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Search
+                </label>
+                <div className="relative">
+                  <Search
+                    className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                    strokeWidth={1.75}
+                  />
+                  <input
+                    value={localFilters.searchTerm}
+                    onChange={(e) =>
+                      setLocalFilters((f) => ({ ...f, searchTerm: e.target.value }))
+                    }
+                    placeholder="Name / Roll"
+                    className="h-8 w-40 rounded-lg border border-white/40 dark:border-white/10 bg-white/20 dark:bg-white/5 pl-8 pr-2.5 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Semester
+                </label>
+                <input
+                  value={localFilters.semesterName}
+                  onChange={(e) =>
+                    setLocalFilters((f) => ({ ...f, semesterName: e.target.value }))
+                  }
+                  placeholder="e.g. 1st"
+                  className="h-8 w-28 rounded-lg border border-white/40 dark:border-white/10 bg-white/20 dark:bg-white/5 px-2.5 text-sm outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Exam Year
+                </label>
+                <input
+                  value={localFilters.examYear}
+                  onChange={(e) =>
+                    setLocalFilters((f) => ({ ...f, examYear: e.target.value }))
+                  }
+                  placeholder="2024"
+                  className="h-8 w-24 rounded-lg border border-white/40 dark:border-white/10 bg-white/20 dark:bg-white/5 px-2.5 text-sm outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Status
+                </label>
+                <select
+                  value={localFilters.status}
+                  onChange={(e) =>
+                    setLocalFilters((f) => ({ ...f, status: e.target.value }))
+                  }
+                  className="h-8 w-28 rounded-lg border border-white/40 dark:border-white/10 bg-white/20 dark:bg-white/5 px-2.5 text-sm outline-none focus:border-primary"
+                >
+                  <option value="">All</option>
+                  <option value="Passed">Passed</option>
+                  <option value="Failed">Failed</option>
+                  <option value="Incomplete">Incomplete</option>
+                </select>
+              </div>
+
+              <button
+                onClick={applyFilters}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary/10 px-3.5 text-sm font-medium text-primary transition hover:bg-primary/15"
+              >
+                <Filter className="h-3.5 w-3.5" strokeWidth={1.75} />
+                Apply
+              </button>
+            </div>
+          )}
+
+          {/* Content */}
+          <div className="relative min-h-[320px]">
+            {isPending && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/20 dark:bg-black/20 backdrop-blur-[2px]">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" strokeWidth={1.75} />
+              </div>
+            )}
+
+            {mode === "roll" ? (
+              <RollView results={rollResults} roll={initialRoll} />
+            ) : (
+              <AllResultsView
+                results={results}
+                meta={meta}
+                page={page}
+                totalPages={totalPages}
+                onPageChange={(p) => updateQuery({ page: p })}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── All Results Table ───────────────────────── */
+
+function AllResultsView({
+  results,
+  meta,
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  results: ResultItem[];
+  meta: { page: number; limit: number; total: number };
+  page: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
+}) {
+  if (!results.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
+          <FileText className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
+        </div>
+        <p className="font-medium text-foreground">No results found</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Try adjusting your filters or search term
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Nunito:wght@400;500;600;700;800&display=swap');
-        .rc *{box-sizing:border-box}
-        .rc{font-family:'Nunito',sans-serif;background:#f8fafc;min-height:100vh;color:#0f172a}
-        .rc-card{background:#fff;border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.03)}
-        .rc-input{font-family:'Nunito',sans-serif;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;color:#0f172a;padding:12px 16px;font-size:14.5px;width:100%;outline:none;transition:border-color .2s,background .2s,box-shadow .2s}
-        .rc-input:focus{border-color:#3b82f6;background:#fff;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
-        .rc-input::placeholder{color:#94a3b8}
-        select.rc-input option{background:#fff;color:#0f172a}
-        .rc-btn{font-family:'Nunito',sans-serif;border:none;border-radius:12px;padding:12px 24px;font-size:14.5px;font-weight:700;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;justify-content:center;gap:7px}
-        .rc-btn-primary{background:#1e40af;color:#fff;box-shadow:0 4px 14px rgba(30,64,175,.25)}
-        .rc-btn-primary:hover:not(:disabled){background:#1d4ed8;transform:translateY(-1px);box-shadow:0 6px 18px rgba(30,64,175,.3)}
-        .rc-btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
-        .rc-btn-ghost{background:#f1f5f9;color:#475569;border:1.5px solid #e2e8f0}
-        .rc-btn-ghost:hover{background:#e2e8f0;color:#1e293b}
-        .rc-tab{font-family:'Nunito',sans-serif;padding:10px 22px;border-radius:12px;border:none;font-size:14.5px;font-weight:700;cursor:pointer;transition:all .15s}
-        .rc-tab-active{background:#1e40af;color:#fff;box-shadow:0 4px 14px rgba(30,64,175,.25)}
-        .rc-tab-inactive{background:transparent;color:#64748b}
-        .rc-tab-inactive:hover{background:#e2e8f0;color:#1e293b}
-        .rc-table{width:100%;border-collapse:collapse}
-        .rc-table th{text-align:left;padding:14px 18px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#64748b;font-weight:700;border-bottom:2px solid #f1f5f9;white-space:nowrap;background:#f8fafc}
-        .rc-table td{padding:15px 18px;font-size:13.5px;border-bottom:1px solid #f1f5f9;color:#374151;vertical-align:middle}
-        .rc-table tbody tr{cursor:pointer;transition:background .12s}
-        .rc-table tbody tr:hover td{background:#f8fafc}
-        .rc-table tbody tr.rc-expanded td{background:#eff6ff}
-        .rc-page-btn{width:36px;height:36px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#475569;font-size:13px;font-family:'Nunito',sans-serif;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
-        .rc-page-btn:hover:not(:disabled){background:#f1f5f9;border-color:#cbd5e1}
-        .rc-page-btn.active{background:#1e40af;color:#fff;border-color:#1e40af;box-shadow:0 2px 8px rgba(30,64,175,.25)}
-        .rc-page-btn:disabled{opacity:.3;cursor:not-allowed}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-        .fu{animation:fadeUp .35s ease both}
-        .fu1{animation-delay:.05s}.fu2{animation-delay:.1s}.fu3{animation-delay:.15s}.fu4{animation-delay:.2s}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        .spinner{width:15px;height:15px;border:2.5px solid #bfdbfe;border-top-color:#1e40af;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0}
-      `}</style>
-
-      <div className="rc" style={{ padding: "32px 20px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          {/* Header */}
-          <div className="fu" style={{ marginBottom: 28 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
-              <div
-                style={{
-                  width: 5,
-                  height: 32,
-                  background: "linear-gradient(180deg,#1e40af,#3b82f6)",
-                  borderRadius: 3,
-                }}
-              />
-              <h1
-                style={{
-                  fontFamily: "'Lora',serif",
-                  fontSize: 26,
-                  fontWeight: 700,
-                  margin: 0,
-                  letterSpacing: "-.3px",
-                  color: "#0f172a",
-                }}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-white/30 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <th className="px-5 py-3.5 font-medium">Roll</th>
+              <th className="px-5 py-3.5 font-medium">Name</th>
+              <th className="px-5 py-3.5 font-medium">Semester</th>
+              <th className="px-5 py-3.5 font-medium">Year</th>
+              <th className="px-5 py-3.5 font-medium">CGPA</th>
+              <th className="px-5 py-3.5 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((item, idx) => (
+              <tr
+                key={item._id || idx}
+                className="border-b border-white/20 dark:border-white/5 transition hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
               >
-                Diploma Results Portal
-              </h1>
-            </div>
-            <p style={{ color: "#94a3b8", fontSize: 14.5, margin: "0 0 0 17px" }}>
-              Browse all exam results or look up a student by roll number
-            </p>
-          </div>
-
-          {/* Tabs */}
-          <div className="fu fu1" style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-            {(["all", "roll"] as const).map((t) => (
-              <button
-                key={t}
-                className={`rc-tab rc-tab-${t === activeTab ? "active" : "inactive"}`}
-                onClick={() => handleTabSwitch(t)}
-              >
-                {t === "all" ? "All Results" : "Search by Roll"}
-              </button>
+                <td className="px-5 py-3.5 font-medium text-foreground">
+                  {item.roll || "—"}
+                </td>
+                <td className="px-5 py-3.5 text-foreground">{item.name || "—"}</td>
+                <td className="px-5 py-3.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
+                    <BookOpen className="h-3 w-3" strokeWidth={1.75} />
+                    {item.semesterName || "—"}
+                  </span>
+                </td>
+                <td className="px-5 py-3.5 text-muted-foreground">
+                  {item.examYear || "—"}
+                </td>
+                <td className="px-5 py-3.5">
+                  <span className="font-serif text-base font-bold text-primary">
+                    {item.cgpa ?? item.gpa ?? "—"}
+                  </span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <StatusBadge status={item.status} />
+                </td>
+              </tr>
             ))}
-          </div>
+          </tbody>
+        </table>
+      </div>
 
-          {/* ═══ ROLL TAB ═══ */}
-          {activeTab === "roll" && (
-            <div>
-              <div
-                className="rc-card fu fu1"
-                style={{ padding: 20, marginBottom: 22, borderLeft: "4px solid #1e40af" }}
-              >
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                  <input
-                    className="rc-input"
-                    style={{ flex: 1, minWidth: 220 }}
-                    placeholder="Enter roll number (e.g. 802810)"
-                    value={rollInput}
-                    onChange={(e) => setRollInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleRollSearch()}
-                  />
-                  <button
-                    className="rc-btn rc-btn-primary"
-                    onClick={handleRollSearch}
-                    disabled={isPending}
-                  >
-                    {isPending ? (
-                      <>
-                        <span className="spinner" /> Searching…
-                      </>
-                    ) : (
-                      "Search Results"
-                    )}
-                  </button>
-                </div>
-              </div>
+      {/* Pagination */}
+      <div className="flex items-center justify-between border-t border-white/30 dark:border-white/10 px-5 py-3.5">
+        <p className="text-xs text-muted-foreground">
+          Showing{" "}
+          <span className="font-medium text-foreground">
+            {(page - 1) * meta.limit + 1}–{Math.min(page * meta.limit, meta.total)}
+          </span>{" "}
+          of <span className="font-medium text-foreground">{meta.total}</span>
+        </p>
 
-              {!initialRoll && (
-                <div
-                  className="rc-card"
-                  style={{
-                    padding: "64px 32px",
-                    textAlign: "center",
-                    borderLeft: "4px solid #e2e8f0",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 68,
-                      height: 68,
-                      borderRadius: 18,
-                      background: "linear-gradient(135deg,#eff6ff,#dbeafe)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      margin: "0 auto 16px",
-                      fontSize: 30,
-                    }}
-                  >
-                    🎓
-                  </div>
-                  <p style={{ color: "#0f172a", fontSize: 16.5, fontWeight: 700, margin: "0 0 4px" }}>
-                    Search Student Results
-                  </p>
-                  <p style={{ color: "#94a3b8", fontSize: 14, margin: 0 }}>
-                    Enter a roll number above to view semester-wise results
-                  </p>
-                </div>
-              )}
-
-              {initialRoll && rollResults.length === 0 && (
-                <div
-                  className="rc-card"
-                  style={{
-                    padding: "64px 32px",
-                    textAlign: "center",
-                    borderLeft: "4px solid #fecdd3",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 68,
-                      height: 68,
-                      borderRadius: 18,
-                      background: "#fff1f2",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      margin: "0 auto 16px",
-                      fontSize: 30,
-                    }}
-                  >
-                    📭
-                  </div>
-                  <p style={{ color: "#0f172a", fontSize: 16.5, fontWeight: 700, margin: "0 0 4px" }}>
-                    No Results Found
-                  </p>
-                  <p style={{ color: "#94a3b8", fontSize: 14, margin: 0 }}>
-                    No results found for roll{" "}
-                    <strong style={{ color: "#1e40af" }}>{initialRoll}</strong>
-                  </p>
-                </div>
-              )}
-
-              {rollResults.length > 0 && rollStats && (
-                <div>
-                  {/* Student banner + progress ring */}
-                  <div
-                    className="rc-card fu"
-                    style={{
-                      padding: 22,
-                      marginBottom: 16,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 16,
-                      flexWrap: "wrap",
-                      borderLeft: "4px solid #1e40af",
-                      background: "linear-gradient(135deg,#fff 0%,#f8fafc 100%)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 54,
-                        height: 54,
-                        borderRadius: "50%",
-                        flexShrink: 0,
-                        background: "linear-gradient(135deg,#1e40af,#3b82f6)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 20,
-                        fontWeight: 800,
-                        color: "#fff",
-                        boxShadow: "0 6px 16px rgba(30,64,175,.28)",
-                      }}
-                    >
-                      {rollResults[0].student?.name?.[0]?.toUpperCase() ?? "S"}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 160 }}>
-                      <p style={{ margin: 0, fontWeight: 800, fontSize: 17.5, color: "#0f172a" }}>
-                        {rollResults[0].student?.name}
-                      </p>
-                      <p style={{ margin: "3px 0 0", fontSize: 13.5, color: "#64748b" }}>
-                        Roll:{" "}
-                        <strong style={{ color: "#1e40af" }}>{rollResults[0].roll}</strong>
-                        {rollResults[0].student?.registration && (
-                          <> · Reg: {rollResults[0].student.registration}</>
-                        )}
-                      </p>
-                    </div>
-                    <div style={{ textAlign: "right", marginRight: 4 }}>
-                      <p style={{ margin: 0, fontSize: 13, color: "#374151", fontWeight: 700 }}>
-                        {rollResults[0].instituteName}
-                      </p>
-                      <p style={{ margin: "2px 0 0", fontSize: 12, color: "#94a3b8" }}>
-                        Code: {rollResults[0].instituteCode}
-                      </p>
-                    </div>
-                    <ProgressRing completed={rollStats.completed} />
-                  </div>
-
-                  {/* Stats — FIXED counts */}
-                  <div
-                    className="fu fu1"
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))",
-                      gap: 12,
-                      marginBottom: 16,
-                    }}
-                  >
-                    {[
-                      {
-                        label: "Semesters",
-                        value: rollStats.completed,
-                        color: "#1e40af",
-                        border: "#1e40af",
-                      },
-                      {
-                        label: "Passed",
-                        value: rollStats.passed,
-                        color: "#15803d",
-                        border: "#22c55e",
-                      },
-                      {
-                        label: "Failed",
-                        value: rollStats.failed,
-                        color: "#be123c",
-                        border: "#f43f5e",
-                      },
-                      {
-                        label: "Best GPA",
-                        value:
-                          rollStats.best != null ? rollStats.best.toFixed(2) : "—",
-                        color: "#b45309",
-                        border: "#f59e0b",
-                      },
-                    ].map((s) => (
-                      <div
-                        key={s.label}
-                        className="rc-card"
-                        style={{
-                          padding: "14px 16px",
-                          borderLeft: `4px solid ${s.border}`,
-                        }}
-                      >
-                        <p
-                          style={{
-                            margin: 0,
-                            fontSize: 10.5,
-                            color: "#94a3b8",
-                            textTransform: "uppercase",
-                            letterSpacing: ".07em",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {s.label}
-                        </p>
-                        <p
-                          style={{
-                            margin: "4px 0 0",
-                            fontSize: 23,
-                            fontWeight: 800,
-                            color: s.color,
-                          }}
-                        >
-                          {s.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* GPA Trend */}
-                  <div
-                    className="rc-card fu fu2"
-                    style={{
-                      padding: 18,
-                      marginBottom: 16,
-                      borderLeft: "4px solid #3b82f6",
-                    }}
-                  >
-                    <GpaTrend results={rollResults} />
-                  </div>
-
-                  {/* Semester cards */}
-                  <div style={{ display: "grid", gap: 14 }}>
-                    {rollResults.map((r, i) => {
-                      const allGpas = nonNullGpas(r);
-                      const { referredCount, failedCount } = splitBreakdown(r);
-                      const hasSubjectIssues =
-                        referredCount > 0 || failedCount > 0;
-
-                      return (
-                        <div
-                          key={r.id}
-                          className="rc-card fu"
-                          style={{
-                            padding: 20,
-                            animationDelay: `${i * 0.05}s`,
-                            borderLeft: `4px solid ${
-                              STATUS[r.status]?.dot ?? "#94a3b8"
-                            }`,
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: 14,
-                              alignItems: "flex-start",
-                              marginBottom:
-                                hasSubjectIssues || allGpas.length > 1 ? 14 : 0,
-                            }}
-                          >
-                            <div style={{ flex: 1, minWidth: 200 }}>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 8,
-                                  marginBottom: 8,
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    background: "#eff6ff",
-                                    color: "#1e40af",
-                                    border: "1px solid #bfdbfe",
-                                    borderRadius: 10,
-                                    padding: "4px 12px",
-                                    fontSize: 13,
-                                    fontWeight: 800,
-                                  }}
-                                >
-                                  Semester {r.semester?.name ?? r.semesterName}
-                                </span>
-                                <StatusBadge status={r.status} />
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: 13,
-                                  color: "#64748b",
-                                  display: "flex",
-                                  flexWrap: "wrap",
-                                  gap: "4px 14px",
-                                }}
-                              >
-                                <span>
-                                  Exam Year:{" "}
-                                  <strong style={{ color: "#374151" }}>
-                                    {r.examYear}
-                                  </strong>
-                                </span>
-                                <span>
-                                  Regulation:{" "}
-                                  <strong style={{ color: "#374151" }}>
-                                    {r.regulation}
-                                  </strong>
-                                </span>
-                                <span>
-                                  Group:{" "}
-                                  <strong style={{ color: "#374151" }}>
-                                    {r.group?.name}
-                                  </strong>{" "}
-                                  ({r.group?.session})
-                                </span>
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
-                              {allGpas.map((g) => (
-                                <GpaChip
-                                  key={g.label}
-                                  value={g.value}
-                                  label={g.label}
-                                />
-                              ))}
-                            </div>
-                          </div>
-
-                          {hasSubjectIssues && (
-                            <div
-                              style={{
-                                marginBottom: allGpas.length > 1 ? 12 : 0,
-                                paddingBottom: allGpas.length > 1 ? 12 : 0,
-                                borderBottom:
-                                  allGpas.length > 1
-                                    ? "1px solid #f1f5f9"
-                                    : "none",
-                              }}
-                            >
-                              <SubjectBreakdownBlock r={r} />
-                            </div>
-                          )}
-
-                          {allGpas.length > 1 && (
-                            <div>
-                              <p
-                                style={{
-                                  margin: "0 0 8px",
-                                  fontSize: 11,
-                                  color: "#94a3b8",
-                                  textTransform: "uppercase",
-                                  letterSpacing: ".07em",
-                                  fontWeight: 700,
-                                }}
-                              >
-                                All GPA Records
-                              </p>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  gap: 8,
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                {allGpas.map((g) => (
-                                  <span
-                                    key={g.label}
-                                    style={{
-                                      background: "#f8fafc",
-                                      border: "1px solid #e2e8f0",
-                                      borderRadius: 10,
-                                      padding: "5px 12px",
-                                      fontSize: 13,
-                                      fontWeight: 700,
-                                      color: "#0f172a",
-                                    }}
-                                  >
-                                    {g.label}: {g.value.toFixed(2)}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ═══ ALL TAB (unchanged logic) ═══ */}
-          {activeTab === "all" && (
-            <div>
-              <div
-                className="rc-card fu fu1"
-                style={{
-                  padding: 20,
-                  marginBottom: 20,
-                  borderLeft: "4px solid #1e40af",
-                }}
-              >
-                <p
-                  style={{
-                    margin: "0 0 12px",
-                    fontSize: 11,
-                    color: "#64748b",
-                    textTransform: "uppercase",
-                    letterSpacing: ".08em",
-                    fontWeight: 700,
-                  }}
-                >
-                  Filters
-                </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
-                    gap: 10,
-                  }}
-                >
-                  <input
-                    className="rc-input"
-                    placeholder="Search roll / institute…"
-                    value={filterState.searchTerm}
-                    onChange={(e) =>
-                      setFilterState((s) => ({
-                        ...s,
-                        searchTerm: e.target.value,
-                      }))
-                    }
-                  />
-                  <input
-                    className="rc-input"
-                    placeholder="Semester (e.g. 3)"
-                    value={filterState.semesterName}
-                    onChange={(e) =>
-                      setFilterState((s) => ({
-                        ...s,
-                        semesterName: e.target.value,
-                      }))
-                    }
-                  />
-                  <input
-                    className="rc-input"
-                    placeholder="Exam year (e.g. 2025)"
-                    value={filterState.examYear}
-                    onChange={(e) =>
-                      setFilterState((s) => ({
-                        ...s,
-                        examYear: e.target.value,
-                      }))
-                    }
-                  />
-                  <input
-                    className="rc-input"
-                    placeholder="Regulation (e.g. 2022)"
-                    value={filterState.regulation}
-                    onChange={(e) =>
-                      setFilterState((s) => ({
-                        ...s,
-                        regulation: e.target.value,
-                      }))
-                    }
-                  />
-                  <select
-                    className="rc-input"
-                    value={filterState.status}
-                    onChange={(e) =>
-                      setFilterState((s) => ({
-                        ...s,
-                        status: e.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">All Statuses</option>
-                    {["PASSED", "FAILED", "WITHHELD", "ABSENT", "INCOMPLETE"].map(
-                      (st) => (
-                        <option key={st} value={st}>
-                          {st}
-                        </option>
-                      )
-                    )}
-                  </select>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      className="rc-btn rc-btn-primary"
-                      style={{ flex: 1 }}
-                      onClick={handleFilter}
-                      disabled={isPending}
-                    >
-                      {isPending ? (
-                        <>
-                          <span className="spinner" /> Applying…
-                        </>
-                      ) : (
-                        "Apply"
-                      )}
-                    </button>
-                    <button className="rc-btn rc-btn-ghost" onClick={handleClear}>
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className="fu fu2"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 10,
-                }}
-              >
-                <p style={{ margin: 0, fontSize: 13.5, color: "#64748b" }}>
-                  Showing{" "}
-                  <strong style={{ color: "#0f172a" }}>{results.length}</strong> of{" "}
-                  <strong style={{ color: "#0f172a" }}>{meta.total}</strong> results
-                </p>
-                {isPending && (
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: "#3b82f6",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <span className="spinner" /> Loading…
-                  </span>
-                )}
-              </div>
-
-              <div
-                className="rc-card fu fu3"
-                style={{
-                  overflow: "hidden",
-                  marginBottom: 22,
-                  borderLeft: "4px solid #1e40af",
-                }}
-              >
-                {results.length === 0 ? (
-                  <div style={{ padding: 64, textAlign: "center" }}>
-                    <div style={{ fontSize: 40, marginBottom: 10 }}>📋</div>
-                    <p
-                      style={{
-                        color: "#0f172a",
-                        fontWeight: 700,
-                        fontSize: 15,
-                        margin: "0 0 4px",
-                      }}
-                    >
-                      No results found
-                    </p>
-                    <p style={{ color: "#94a3b8", margin: 0 }}>
-                      No results match the current filters.
-                    </p>
-                  </div>
-                ) : (
-                  <div style={{ overflowX: "auto" }}>
-                    <table className="rc-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Roll</th>
-                          <th>Student</th>
-                          <th>Semester</th>
-                          <th>Group / Session</th>
-                          <th>Exam Year</th>
-                          <th>Regulation</th>
-                          <th>GPA</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {results.map((r, i) => {
-                          const { referredCount, failedCount } =
-                            splitBreakdown(r);
-                          return (
-                            <Fragment key={r.id}>
-                              <tr
-                                className={
-                                  expandedId === r.id ? "rc-expanded" : ""
-                                }
-                                onClick={() =>
-                                  setExpandedId(
-                                    expandedId === r.id ? null : r.id
-                                  )
-                                }
-                              >
-                                <td
-                                  style={{
-                                    color: "#94a3b8",
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {(page - 1) * meta.limit + i + 1}
-                                </td>
-                                <td>
-                                  <span
-                                    style={{
-                                      color: "#1e40af",
-                                      fontWeight: 800,
-                                      fontFamily: "monospace",
-                                      fontSize: 13.5,
-                                    }}
-                                  >
-                                    {r.roll}
-                                  </span>
-                                </td>
-                                <td>
-                                  <div
-                                    style={{
-                                      fontWeight: 700,
-                                      color: "#0f172a",
-                                      fontSize: 14,
-                                    }}
-                                  >
-                                    {r.student?.name ?? "—"}
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: 11.5,
-                                      color: "#94a3b8",
-                                      marginTop: 1,
-                                    }}
-                                  >
-                                    {r.student?.registration}
-                                  </div>
-                                </td>
-                                <td>
-                                  <span
-                                    style={{
-                                      background: "#eff6ff",
-                                      color: "#1e40af",
-                                      border: "1px solid #bfdbfe",
-                                      borderRadius: 8,
-                                      padding: "3px 10px",
-                                      fontSize: 12.5,
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    Sem {r.semester?.name ?? r.semesterName}
-                                  </span>
-                                </td>
-                                <td style={{ fontSize: 13.5, color: "#374151" }}>
-                                  <span style={{ fontWeight: 700 }}>
-                                    {r.group?.name}
-                                  </span>
-                                  <span style={{ color: "#94a3b8" }}>
-                                    {" "}
-                                    · {r.group?.session}
-                                  </span>
-                                </td>
-                                <td
-                                  style={{
-                                    color: "#374151",
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  {r.examYear}
-                                </td>
-                                <td
-                                  style={{
-                                    color: "#64748b",
-                                    fontSize: 12.5,
-                                  }}
-                                >
-                                  {r.regulation}
-                                </td>
-                                <td>
-                                  {(() => {
-                                    const g = getSemesterGpa(r);
-                                    const col =
-                                      g == null
-                                        ? "#94a3b8"
-                                        : g >= 3.5
-                                        ? "#15803d"
-                                        : g >= 2.5
-                                        ? "#0369a1"
-                                        : g >= 1
-                                        ? "#b45309"
-                                        : "#be123c";
-                                    return (
-                                      <span
-                                        style={{
-                                          fontWeight: 800,
-                                          color: col,
-                                          fontSize: 15,
-                                          fontVariantNumeric: "tabular-nums",
-                                        }}
-                                      >
-                                        {g != null ? g.toFixed(2) : "—"}
-                                      </span>
-                                    );
-                                  })()}
-                                </td>
-                                <td>
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: 6,
-                                      flexWrap: "wrap",
-                                    }}
-                                  >
-                                    <StatusBadge status={r.status} />
-                                    {failedCount > 0 && (
-                                      <span
-                                        style={{
-                                          fontSize: 11,
-                                          fontWeight: 800,
-                                          color: "#be123c",
-                                        }}
-                                      >
-                                        ✕{failedCount}
-                                      </span>
-                                    )}
-                                    {referredCount > 0 && (
-                                      <span
-                                        style={{
-                                          fontSize: 11,
-                                          fontWeight: 800,
-                                          color: "#b45309",
-                                        }}
-                                      >
-                                        ⚠{referredCount}
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-
-                              {expandedId === r.id && (
-                                <tr>
-                                  <td colSpan={9} style={{ padding: 0 }}>
-                                    <div
-                                      style={{
-                                        background: "#f0f9ff",
-                                        borderTop: "1px solid #bae6fd",
-                                        padding: "16px 20px",
-                                        display: "grid",
-                                        gap: 16,
-                                      }}
-                                    >
-                                      <div
-                                        style={{
-                                          display: "grid",
-                                          gridTemplateColumns:
-                                            "repeat(auto-fit,minmax(160px,1fr))",
-                                          gap: 16,
-                                        }}
-                                      >
-                                        <div>
-                                          <p
-                                            style={{
-                                              margin: 0,
-                                              fontSize: 11,
-                                              color: "#64748b",
-                                              textTransform: "uppercase",
-                                              letterSpacing: ".07em",
-                                              fontWeight: 700,
-                                            }}
-                                          >
-                                            Institute
-                                          </p>
-                                          <p
-                                            style={{
-                                              margin: "3px 0 0",
-                                              fontSize: 13.5,
-                                              color: "#0f172a",
-                                              fontWeight: 700,
-                                            }}
-                                          >
-                                            {r.instituteName}
-                                          </p>
-                                          <p
-                                            style={{
-                                              margin: "2px 0 0",
-                                              fontSize: 12,
-                                              color: "#94a3b8",
-                                            }}
-                                          >
-                                            Code: {r.instituteCode}
-                                          </p>
-                                        </div>
-                                        <div>
-                                          <p
-                                            style={{
-                                              margin: 0,
-                                              fontSize: 11,
-                                              color: "#64748b",
-                                              textTransform: "uppercase",
-                                              letterSpacing: ".07em",
-                                              fontWeight: 700,
-                                            }}
-                                          >
-                                            All GPAs
-                                          </p>
-                                          <div
-                                            style={{
-                                              display: "flex",
-                                              flexWrap: "wrap",
-                                              gap: 6,
-                                              marginTop: 6,
-                                            }}
-                                          >
-                                            {nonNullGpas(r).map((g) => (
-                                              <span
-                                                key={g.label}
-                                                style={{
-                                                  background: "#fff",
-                                                  border: "1px solid #e2e8f0",
-                                                  borderRadius: 8,
-                                                  padding: "2px 10px",
-                                                  fontSize: 12,
-                                                  fontWeight: 700,
-                                                  color: "#0f172a",
-                                                }}
-                                              >
-                                                {g.label}: {g.value.toFixed(2)}
-                                              </span>
-                                            ))}
-                                            {nonNullGpas(r).length === 0 && (
-                                              <span
-                                                style={{
-                                                  color: "#94a3b8",
-                                                  fontSize: 13,
-                                                }}
-                                              >
-                                                —
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <p
-                                            style={{
-                                              margin: 0,
-                                              fontSize: 11,
-                                              color: "#64748b",
-                                              textTransform: "uppercase",
-                                              letterSpacing: ".07em",
-                                              fontWeight: 700,
-                                            }}
-                                          >
-                                            Last Updated
-                                          </p>
-                                          <p
-                                            style={{
-                                              margin: "3px 0 0",
-                                              fontSize: 13,
-                                              color: "#374151",
-                                              fontWeight: 600,
-                                            }}
-                                          >
-                                            {new Date(
-                                              r.updatedAt
-                                            ).toLocaleDateString("en-BD", {
-                                              day: "2-digit",
-                                              month: "short",
-                                              year: "numeric",
-                                            })}
-                                          </p>
-                                        </div>
-                                      </div>
-
-                                      {(referredCount > 0 ||
-                                        failedCount > 0) && (
-                                        <div>
-                                          <p
-                                            style={{
-                                              margin: "0 0 8px",
-                                              fontSize: 11,
-                                              color: "#64748b",
-                                              textTransform: "uppercase",
-                                              letterSpacing: ".07em",
-                                              fontWeight: 700,
-                                            }}
-                                          >
-                                            Subjects
-                                          </p>
-                                          <SubjectBreakdownBlock r={r} />
-                                        </div>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {totalPages > 1 && (
-                <div
-                  className="fu fu4"
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    gap: 5,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <button
-                    className="rc-page-btn"
-                    disabled={page <= 1}
-                    onClick={() => pushParams({ page: String(page - 1) })}
-                  >
-                    ←
-                  </button>
-                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                    const p2 =
-                      totalPages <= 7
-                        ? i + 1
-                        : page <= 4
-                        ? i + 1
-                        : page >= totalPages - 3
-                        ? totalPages - 6 + i
-                        : page - 3 + i;
-                    return (
-                      <button
-                        key={p2}
-                        className={`rc-page-btn${p2 === page ? " active" : ""}`}
-                        onClick={() => pushParams({ page: String(p2) })}
-                      >
-                        {p2}
-                      </button>
-                    );
-                  })}
-                  <button
-                    className="rc-page-btn"
-                    disabled={page >= totalPages}
-                    onClick={() => pushParams({ page: String(page + 1) })}
-                  >
-                    →
-                  </button>
-                  <span
-                    style={{
-                      fontSize: 12.5,
-                      color: "#94a3b8",
-                      marginLeft: 6,
-                    }}
-                  >
-                    Page {page} / {totalPages}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/40 dark:border-white/10 bg-white/20 dark:bg-white/5 text-muted-foreground transition hover:bg-white/30 disabled:opacity-40"
+          >
+            <ChevronLeft className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+          <span className="min-w-[3.5rem] text-center text-sm font-medium tabular-nums">
+            {page} / {totalPages}
+          </span>
+          <button
+            onClick={() => onPageChange(page + 1)}
+            disabled={page >= totalPages}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/40 dark:border-white/10 bg-white/20 dark:bg-white/5 text-muted-foreground transition hover:bg-white/30 disabled:opacity-40"
+          >
+            <ChevronRight className="h-4 w-4" strokeWidth={1.75} />
+          </button>
         </div>
       </div>
     </>
+  );
+}
+
+/* ───────────────────────── Roll Detail View ───────────────────────── */
+
+function RollView({ results, roll }: { results: ResultItem[]; roll: string }) {
+  if (!results.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5">
+          <User className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
+        </div>
+        <p className="font-medium text-foreground">No results for roll {roll}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Double-check the roll number and try again
+        </p>
+      </div>
+    );
+  }
+
+  const student = results[0];
+
+  return (
+    <div className="p-5 sm:p-6">
+      {/* Student header */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-gold-soft/30 bg-gradient-to-br from-secondary/60 to-accent/60 backdrop-blur-sm">
+            <GraduationCap className="h-7 w-7 text-primary" strokeWidth={1.5} />
+          </div>
+          <div>
+            <h2 className="font-serif text-xl font-bold text-foreground">
+              {student.name || "Student"}
+            </h2>
+            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Hash className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {student.roll || roll}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/60 px-3 py-1 text-xs font-medium text-secondary-foreground">
+            <Calendar className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {results.length} semester{results.length > 1 ? "s" : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* Semester cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {results.map((item, idx) => (
+          <div
+            key={item._id || idx}
+            className="group relative overflow-hidden rounded-2xl border border-white/40 dark:border-white/10 bg-white/25 dark:bg-white/5 p-5 backdrop-blur-sm transition hover:border-primary/30 hover:shadow-[var(--shadow-hover)]"
+          >
+            <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-primary via-emerald-500 to-[var(--gold)] opacity-0 transition group-hover:opacity-100" />
+
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Semester
+                </p>
+                <p className="mt-0.5 font-serif text-lg font-bold text-foreground">
+                  {item.semesterName || "—"}
+                </p>
+              </div>
+              <StatusBadge status={item.status} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] px-3 py-2.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  CGPA
+                </p>
+                <p className="mt-0.5 font-serif text-xl font-bold text-primary">
+                  {item.cgpa ?? item.gpa ?? "—"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] px-3 py-2.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Year
+                </p>
+                <p className="mt-0.5 font-medium text-foreground">
+                  {item.examYear || "—"}
+                </p>
+              </div>
+            </div>
+
+            {(item.regulation || item.totalCredit) && (
+              <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+                {item.regulation && (
+                  <span className="flex items-center gap-1">
+                    <Award className="h-3 w-3" strokeWidth={1.75} />
+                    {item.regulation}
+                  </span>
+                )}
+                {item.totalCredit && <span>{item.totalCredit} credits</span>}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── Status Badge ───────────────────────── */
+
+function StatusBadge({ status }: { status?: string }) {
+  if (!status) return <span className="text-muted-foreground">—</span>;
+
+  const isPassed = /pass|success|complete/i.test(status);
+  const isFailed = /fail|incomplete|absent/i.test(status);
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
+        isPassed && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+        isFailed && "bg-destructive/10 text-destructive",
+        !isPassed && !isFailed && "bg-black/5 dark:bg-white/5 text-muted-foreground"
+      )}
+    >
+      {isPassed ? (
+        <CheckCircle2 className="h-3 w-3" strokeWidth={1.75} />
+      ) : isFailed ? (
+        <XCircle className="h-3 w-3" strokeWidth={1.75} />
+      ) : null}
+      {status}
+    </span>
   );
 }

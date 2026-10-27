@@ -20,9 +20,8 @@ const NAV_LINKS = [
   { href: "/result", label: "Results" },
   { href: "/book", label: "Books List" },
   { href: "/notice", label: "Notice" },
-  { href: "/admission", label: "Admission" },
-  { href: "/about", label: "About Us" },
-  { href: "/contact", label: "Contact" },
+  { href: "/memory", label: "Memories" },
+
 ];
 
 export default function PublicNavbar() {

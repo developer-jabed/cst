@@ -25,7 +25,7 @@ export const studentNavItems: NavSection[] = [
     {
         title: "Student Management",
         items: [
-            { title: "Notes",   href: "/dashboard/student/notes",   icon: "NotebookPen", roles: ["STUDENT", "CR", "TEACHER"] },
+           
             { title: "Routine", href: "/dashboard/student/routine", icon: "BookOpen",    roles: ["STUDENT", "CR", "TEACHER"] },
             { title: "Tasks",   href: "/dashboard/student/tasks",   icon: "ListChecks",  roles: ["STUDENT", "CR", "TEACHER"] },
         ],
@@ -40,7 +40,7 @@ export const studentNavItems: NavSection[] = [
     {
         title: "Progress Tracking",
         items: [
-            { title: "Attendance", href: "/dashboard/student/attendance", icon: "CheckSquare", roles: ["CR"] },
+           
             { title: "Results",    href: "/dashboard/student/results",    icon: "BarChart",    roles: ["STUDENT", "CR"] },
             { title: "Overview",   href: "/dashboard/student/overview",   icon: "Gauge",       roles: ["STUDENT", "CR"] },
         ],
@@ -76,7 +76,7 @@ export const teacherNavItems: NavSection[] = [
         title: "Student Oversight",
         items: [
             { title: "Attendance",      href: "/teacher/dashboard/attendence",      icon: "CheckSquare", roles: ["TEACHER"] },
-            { title: "Student Reports", href: "/teache/dashboardr/student-reports", icon: "FileText",    roles: ["TEACHER"] },
+            { title: "Student Reports", href: "/teacher/dashboard/student-reports", icon: "FileText",    roles: ["TEACHER"] },
         ],
     },
     {

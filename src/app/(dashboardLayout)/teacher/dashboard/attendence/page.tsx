@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { getUserInfo } from "@/service/auth/getUserInfo";
 import { getGroupById } from "@/service/group/group.service";

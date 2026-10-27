@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -31,9 +32,9 @@ export default function AdminDashboardClient({ data }: Props) {
   } = data;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 pb-12">
+    <div className="min-h-screen  pb-12">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b shadow-sm">
+      <div className="sticky top-0 z-50  border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-8 py-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">

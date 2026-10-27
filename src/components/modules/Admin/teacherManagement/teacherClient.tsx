@@ -114,10 +114,10 @@ export default function TeacherManagementClient({ departments, teachers, meta }:
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 text-gray-900">
+        <div className="min-h-screen  text-gray-900">
 
             {/* ── Header ── */}
-            <div className="border-b border-gray-200 bg-white sticky top-0 z-30">
+            <div className="border-b  sticky top-0 z-30">
                 <div className="max-w-screen-xl mx-auto px-6 py-4 flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600">
