@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -18,9 +19,21 @@ import { PracticalCard } from "./Practicalcard";
 type Tab = "ALL" | "PRACTICAL" | "JOB";
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
-  { key: "ALL",       label: "All",        icon: <LayoutGrid  className="h-4 w-4" /> },
-  { key: "PRACTICAL", label: "Practicals", icon: <FlaskConical className="h-4 w-4" /> },
-  { key: "JOB",       label: "Jobs",       icon: <Briefcase   className="h-4 w-4" /> },
+  {
+    key: "ALL",
+    label: "All",
+    icon: <LayoutGrid className="h-4 w-4" />,
+  },
+  {
+    key: "PRACTICAL",
+    label: "Practicals",
+    icon: <FlaskConical className="h-4 w-4" />,
+  },
+  {
+    key: "JOB",
+    label: "Jobs",
+    icon: <Briefcase className="h-4 w-4" />,
+  },
 ];
 
 interface PracticalsClientPageProps {
@@ -32,25 +45,22 @@ export function PracticalsClientPage({
   subjectGroupId,
   students,
 }: PracticalsClientPageProps) {
-  const router       = useRouter();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
-  // ── Derive modal state from URL ──────────────────────────────────────────
-  // ?modal=create  → open create form
-  // ?modal=edit    → (optional future use)
-  const modalParam = searchParams.get("modal"); // "create" | null
+  const modalParam = searchParams.get("modal");
 
-  const [tab, setTab]           = useState<Tab>("ALL");
+  const [tab, setTab] = useState<Tab>("ALL");
   const [practicals, setPracticals] = useState<any[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  // Local modal state (edit, delete, submissions don't use the URL)
-  const [editData,              setEditData]              = useState<any | null>(null);
-  const [deleteId,              setDeleteId]              = useState<number | null>(null);
-  const [deleteTitle,           setDeleteTitle]           = useState<string>("");
-  const [submissionsPractical,  setSubmissionsPractical]  = useState<any | null>(null);
+  const [editData, setEditData] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteTitle, setDeleteTitle] = useState<string>("");
+  const [submissionsPractical, setSubmissionsPractical] = useState<any | null>(
+    null
+  );
 
-  // ── createOpen is driven by the URL param ────────────────────────────────
   const createOpen = modalParam === "create";
 
   const openCreate = () => {
@@ -65,53 +75,82 @@ export function PracticalsClientPage({
     router.push(`?${params.toString()}`);
   };
 
-  // ── Data fetching ────────────────────────────────────────────────────────
+  // Shared loader used by modals (onSuccess) — not called from the effect
   const fetchPracticals = useCallback(async () => {
     setLoading(true);
-    const res = await getPracticals({
-      subjectGroupId,
-      ...(tab !== "ALL" ? { type: tab as any } : {}),
-      limit: 100,
-    });
-    setPracticals(res.data ?? []);
-    setLoading(false);
+    try {
+      const res = await getPracticals({
+        subjectGroupId,
+        ...(tab !== "ALL" ? { type: tab as any } : {}),
+        limit: 100,
+      });
+      setPracticals(res.data ?? []);
+    } finally {
+      setLoading(false);
+    }
   }, [subjectGroupId, tab]);
 
+  // Effect owns its own fetch so setState only runs inside the async callback
   useEffect(() => {
-    fetchPracticals();
-  }, [fetchPracticals]);
+    let cancelled = false;
 
-  // ── Counts ───────────────────────────────────────────────────────────────
+    (async () => {
+      try {
+        const res = await getPracticals({
+          subjectGroupId,
+          ...(tab !== "ALL" ? { type: tab as any } : {}),
+          limit: 100,
+        });
+        if (!cancelled) {
+          setPracticals(res.data ?? []);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setPracticals([]);
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [subjectGroupId, tab]);
+
   const practicalCount = practicals.filter((p) => p.type === "PRACTICAL").length;
-  const jobCount       = practicals.filter((p) => p.type === "JOB").length;
+  const jobCount = practicals.filter((p) => p.type === "JOB").length;
 
   return (
     <>
-      {/* ── Tab bar + stats ── */}
+      {/* Tab bar + stats */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <div className="flex rounded-xl bg-secondary/50 p-1 ring-1 ring-border">
           {TABS.map(({ key, label, icon }) => {
             const count =
-              key === "ALL"       ? practicals.length :
-              key === "PRACTICAL" ? practicalCount    : jobCount;
+              key === "ALL"
+                ? practicals.length
+                : key === "PRACTICAL"
+                  ? practicalCount
+                  : jobCount;
 
             return (
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 ${
                   tab === key
-                    ? key === "PRACTICAL" ? "bg-blue-600 text-white shadow"
-                    : key === "JOB"       ? "bg-violet-600 text-white shadow"
-                    :                       "bg-slate-800 text-white shadow"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-gradient-to-br from-primary to-emerald-600 text-primary-foreground shadow-md shadow-primary/25"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 }`}
               >
                 {icon}
                 {label}
                 <span
                   className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                    tab === key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                    tab === key
+                      ? "bg-white/20 text-primary-foreground"
+                      : "bg-border text-muted-foreground"
                   }`}
                 >
                   {count}
@@ -122,31 +161,34 @@ export function PracticalsClientPage({
         </div>
 
         <div className="flex gap-2 text-sm">
-          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 font-medium text-blue-700">
+          <span className="rounded-full bg-sky-50 px-3 py-1 font-medium text-sky-700 ring-1 ring-inset ring-sky-200">
             {practicalCount} Practical{practicalCount !== 1 ? "s" : ""}
           </span>
-          <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 font-medium text-violet-700">
+          <span className="rounded-full bg-violet-50 px-3 py-1 font-medium text-violet-700 ring-1 ring-inset ring-violet-200">
             {jobCount} Job{jobCount !== 1 ? "s" : ""}
           </span>
         </div>
       </div>
 
-      {/* ── Grid ── */}
+      {/* Grid */}
       {loading ? (
         <div className="flex h-48 items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
         </div>
       ) : practicals.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-white py-20">
-          <SearchX className="mb-3 h-10 w-10 text-slate-300" />
-          <p className="text-base font-semibold text-slate-500">No tasks found</p>
-          <p className="mt-1 text-sm text-slate-400">
+        <div className="theme-card flex flex-col items-center justify-center py-20">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-accent text-primary/50 ring-1 ring-gold-soft">
+            <SearchX className="h-7 w-7" />
+          </div>
+          <p className="text-base font-bold text-foreground">No tasks found</p>
+          <p className="mt-1 text-sm text-muted-foreground">
             Create your first{" "}
-            {tab === "ALL" ? "practical or job" : tab.toLowerCase()} to get started.
+            {tab === "ALL" ? "practical or job" : tab.toLowerCase()} to get
+            started.
           </p>
           <button
             onClick={openCreate}
-            className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            className="mt-5 rounded-xl bg-gradient-to-br from-primary to-emerald-600 px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/30 transition hover:shadow-lg hover:shadow-primary/40 active:scale-95"
           >
             + Create Now
           </button>
@@ -158,16 +200,17 @@ export function PracticalsClientPage({
               key={p.id}
               practical={p}
               onEdit={(data) => setEditData(data)}
-              onDelete={(id) => { setDeleteId(id); setDeleteTitle(p.title); }}
+              onDelete={(id) => {
+                setDeleteId(id);
+                setDeleteTitle(p.title);
+              }}
               onSubmissions={(data) => setSubmissionsPractical(data)}
             />
           ))}
         </div>
       )}
 
-      {/* ── Modals ── */}
-
-      {/* Create / Edit form — createOpen is URL-driven, editData is local state */}
+      {/* Modals */}
       <PracticalFormModal
         open={createOpen || !!editData}
         onClose={() => {
@@ -201,7 +244,7 @@ export function PracticalsClientPage({
       {/* Mobile floating button */}
       <button
         onClick={openCreate}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-2xl shadow-blue-900/30 transition hover:from-blue-700 hover:to-indigo-700 sm:hidden"
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-gradient-to-br from-primary to-emerald-600 px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition hover:shadow-xl hover:shadow-primary/40 active:scale-95 sm:hidden"
       >
         + New
       </button>

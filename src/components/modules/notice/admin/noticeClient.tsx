@@ -2,15 +2,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition, useCallback, useRef } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import {
-  createNoticeDirect,
-  deleteNotice,
-} from "@/service/notice/notice.service";
+import { createNoticeDirect, deleteNotice } from "@/service/notice/notice.service";
 import { getStudents } from "@/service/student/student.service";
-
+import { getAllTeachers } from "@/service/admin/teacherManagement";
 import {
   INotice,
   NoticeAudienceType,
@@ -20,11 +26,8 @@ import {
   NOTICE_PRIORITY_OPTIONS,
   NOTICE_PRIORITY_LABELS,
 } from "@/types/notice.interface";
-import { getAllTeachers } from "@/service/admin/teacherManagement";
 
-// ─────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────
+/* ────────────────────────────── Types ────────────────────────────── */
 
 interface SelectOption {
   [x: string]: any;
@@ -56,11 +59,9 @@ const INITIAL_FORM = {
   studentId: "",
   teacherId: "",
 };
+type FormState = typeof INITIAL_FORM;
 
-// ─────────────────────────────────────────────────────────────
 // Audience-aware target fields
-// ─────────────────────────────────────────────────────────────
-
 const AUDIENCE_NEEDS: Record<NoticeAudienceType, string[]> = {
   ALL: [],
   DEPARTMENT: ["departmentId"],
@@ -70,106 +71,367 @@ const AUDIENCE_NEEDS: Record<NoticeAudienceType, string[]> = {
   TEACHER: ["teacherId"],
 };
 
-// ─────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────
+const FILTER_KEYS = [
+  "searchTerm", "audienceType", "priority", "departmentId", "semesterId",
+  "groupId", "studentId", "teacherId", "isPinned", "isPublished",
+] as const;
 
-export default function NoticesPageClient({
-  notices,
-  meta,
-  departments,
-  semesters,
-  groups,
-}: NoticesPageClientProps) {
+/* ───────────────────────── Style constants ───────────────────────── */
+
+const AUDIENCE_STYLES: Record<string, string> = {
+  ALL: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  DEPARTMENT: "bg-sky-50 text-sky-700 ring-sky-200",
+  SEMESTER: "bg-violet-50 text-violet-700 ring-violet-200",
+  GROUP: "bg-teal-50 text-teal-700 ring-teal-200",
+  STUDENT: "bg-pink-50 text-pink-700 ring-pink-200",
+  TEACHER: "bg-amber-50 text-amber-800 ring-gold-soft",
+};
+const AUDIENCE_FALLBACK = "bg-emerald-50 text-emerald-700 ring-emerald-200";
+
+const PRIORITY_STYLES: Record<string, { chip: string; bar: string }> = {
+  LOW: { chip: "bg-sky-50 text-sky-700 ring-sky-200", bar: "from-sky-400 to-sky-600" },
+  MEDIUM: { chip: "bg-amber-50 text-amber-800 ring-gold-soft", bar: "from-gold-soft to-gold" },
+  HIGH: { chip: "bg-orange-50 text-orange-700 ring-orange-200", bar: "from-orange-400 to-orange-600" },
+  URGENT: { chip: "bg-rose-50 text-rose-700 ring-rose-200", bar: "from-rose-400 to-rose-600" },
+  CRITICAL: { chip: "bg-rose-50 text-rose-700 ring-rose-200", bar: "from-rose-400 to-rose-600" },
+};
+const PRIORITY_FALLBACK = { chip: "bg-amber-50 text-amber-800 ring-gold-soft", bar: "from-primary to-emerald-500" };
+
+const CONTROL =
+  "w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-all duration-200 " +
+  "hover:border-gold-soft focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-60";
+const LABEL = "mb-1.5 block text-[11px] font-bold uppercase tracking-[0.12em] text-primary/70";
+const CHIP = "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset";
+
+const dateFormatter = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+
+const groupLabel = (g: SelectOption) => `${g.currentSemester?.name ?? "—"} Semester ${g.name} Group`;
+
+function getPageItems(page: number, total: number): (number | null)[] {
+  const pages = Array.from({ length: total }, (_, i) => i + 1).filter(
+    (p) => p === 1 || p === total || Math.abs(p - page) <= 1
+  );
+  const out: (number | null)[] = [];
+  pages.forEach((p, i) => {
+    if (i > 0 && p - pages[i - 1] > 1) out.push(null);
+    out.push(p);
+  });
+  return out;
+}
+
+/* ───────────────────────── Async search hook ───────────────────────── */
+
+const fetchStudents = async (q: string): Promise<SelectOption[]> =>
+  (await getStudents({ searchTerm: q, limit: 10 })).data || [];
+const fetchTeachers = async (q: string): Promise<SelectOption[]> =>
+  (await getAllTeachers({ searchTerm: q, limit: 10 })).data || [];
+
+function useAsyncSearch(fetcher: (q: string) => Promise<SelectOption[]>) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SelectOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const search = useCallback(
+    (q: string) => {
+      setQuery(q);
+      if (timer.current) clearTimeout(timer.current);
+      if (!q.trim()) {
+        setResults([]);
+        return;
+      }
+      timer.current = setTimeout(async () => {
+        setLoading(true);
+        try {
+          setResults(await fetcher(q));
+        } catch {
+          setResults([]);
+        } finally {
+          setLoading(false);
+        }
+      }, 400);
+    },
+    [fetcher]
+  );
+
+  const reset = useCallback((q = "") => {
+    if (timer.current) clearTimeout(timer.current);
+    setQuery(q);
+    setResults([]);
+  }, []);
+
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  return { query, results, loading, search, reset };
+}
+type AsyncSearch = ReturnType<typeof useAsyncSearch>;
+
+/* ───────────────────────────── Components ───────────────────────────── */
+
+function AsyncPicker({
+  state, placeholder, onPick, onType, className = CONTROL,
+}: {
+  state: AsyncSearch;
+  placeholder: string;
+  onPick: (item: SelectOption) => void;
+  onType?: () => void;
+  className?: string;
+}) {
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={state.query}
+        onChange={(e) => {
+          state.search(e.target.value);
+          onType?.();
+        }}
+        className={className}
+      />
+      {state.loading && (
+        <span className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+      )}
+      {state.results.length > 0 && (
+        <ul className="st-fade absolute z-20 mt-1.5 max-h-52 w-full overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+          {state.results.map((item) => (
+            <li
+              key={item.id}
+              onClick={() => {
+                onPick(item);
+                state.reset(item.name);
+              }}
+              className="cursor-pointer px-4 py-2.5 text-sm text-foreground transition-colors duration-150 hover:bg-secondary hover:text-primary"
+            >
+              {item.name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+  return (
+    <div>
+      <label className={LABEL}>
+        {label}
+        {required && <span className="ml-1 text-rose-500">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function Select({
+  value, onChange, placeholder, options, className = CONTROL,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  options: { value: string | number; label: string }[];
+  className?: string;
+}) {
+  return (
+    <div className="relative">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={`${className} appearance-none pr-9`}>
+        {placeholder !== undefined && <option value="">{placeholder}</option>}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-gold">▾</span>
+    </div>
+  );
+}
+
+const NoticeCard = memo(function NoticeCard({
+  notice, index, onDelete, disabled,
+}: { notice: INotice; index: number; onDelete: (n: INotice) => void; disabled: boolean }) {
+  const pr = PRIORITY_STYLES[String(notice.priority).toUpperCase()] ?? PRIORITY_FALLBACK;
+  const date = notice.noticeDate ? dateFormatter.format(new Date(notice.noticeDate)) : null;
+
+  return (
+    <div
+      className="st-row theme-card group relative flex flex-col overflow-hidden p-6"
+      style={{ ["--i" as string]: index % 9 }}
+    >
+      <span className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${pr.bar}`} />
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        <span className={`${CHIP} ${AUDIENCE_STYLES[notice.audienceType] ?? AUDIENCE_FALLBACK}`}>
+          {NOTICE_AUDIENCE_TYPE_LABELS[notice.audienceType]}
+        </span>
+        <span className={`${CHIP} ${pr.chip}`}>{NOTICE_PRIORITY_LABELS[notice.priority]}</span>
+        {notice.isPinned && (
+          <span className={`${CHIP} bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-800 ring-gold-soft`}>📌 Pinned</span>
+        )}
+        {!notice.isPublished && <span className={`${CHIP} bg-muted text-muted-foreground ring-border`}>Draft</span>}
+      </div>
+
+      <h2 className="mb-2 line-clamp-2 text-lg font-bold text-foreground transition-colors duration-300 group-hover:text-primary">
+        {notice.title}
+      </h2>
+      <p className="mb-4 line-clamp-3 flex-1 text-sm leading-relaxed text-muted-foreground">{notice.description}</p>
+
+      {date && <p className="mb-4 text-xs font-medium text-gold">📅 {date}</p>}
+
+      <div className="flex items-center gap-3 border-t border-border pt-4">
+        <Link
+          href={`/admin/dashboard/notices/${notice.id}`}
+          className="flex-1 rounded-xl border border-border bg-secondary/60 px-4 py-2 text-center text-sm font-semibold text-primary transition-all duration-200 hover:border-primary hover:bg-secondary active:scale-95"
+        >
+          View
+        </Link>
+        <button
+          onClick={() => onDelete(notice)}
+          disabled={disabled}
+          className="flex-1 rounded-xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-600 ring-1 ring-inset ring-rose-200 transition-all duration-200 hover:bg-rose-100 active:scale-95 disabled:opacity-50"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+});
+
+function ModalShell({ title, onClose, children, size = "max-w-2xl" }: { title: string; onClose: () => void; children: ReactNode; size?: string }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  return (
+    <div className="st-backdrop fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4 backdrop-blur-md" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+        className={`st-modal max-h-[90vh] w-full ${size} overflow-y-auto rounded-3xl border border-border bg-card shadow-2xl`}
+      >
+        <div className="sticky top-0 z-10">
+          <div className="h-1 bg-gradient-to-r from-primary via-emerald-500 to-gold" />
+          <div className="flex items-center justify-between border-b border-border bg-gradient-to-r from-secondary via-card to-secondary px-6 py-4">
+            <h2 className="text-xl font-bold text-foreground">{title}</h2>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="h-9 w-9 rounded-xl text-lg text-muted-foreground transition-all duration-200 hover:rotate-90 hover:bg-rose-50 hover:text-rose-500 active:scale-90"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Pagination({ currentPage, totalPages }: { currentPage: number; totalPages: number }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const items = useMemo(() => getPageItems(currentPage, totalPages), [currentPage, totalPages]);
+
+  const hrefFor = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(p));
+    return `${pathname}?${params.toString()}`;
+  };
+
+  const arrow = "flex h-10 w-10 items-center justify-center rounded-xl text-primary/70 transition-all duration-200 hover:bg-secondary hover:text-primary active:scale-90";
+  const off = "pointer-events-none opacity-30";
+
+  return (
+    <div className="mt-10 flex items-center justify-center gap-1">
+      <Link href={hrefFor(Math.max(1, currentPage - 1))} aria-label="Previous page" className={`${arrow} ${currentPage <= 1 ? off : ""}`}>‹</Link>
+      {items.map((p, i) =>
+        p === null ? (
+          <span key={`gap-${i}`} className="px-1 text-gold">…</span>
+        ) : (
+          <Link
+            key={p}
+            href={hrefFor(p)}
+            aria-current={p === currentPage ? "page" : undefined}
+            className={`flex h-10 min-w-10 items-center justify-center rounded-xl px-2 text-sm font-bold transition-all duration-200 active:scale-90 ${
+              p === currentPage
+                ? "bg-gradient-to-br from-primary to-emerald-600 text-primary-foreground shadow-md shadow-primary/30"
+                : "text-foreground/60 hover:bg-secondary hover:text-primary"
+            }`}
+          >
+            {p}
+          </Link>
+        )
+      )}
+      <Link href={hrefFor(Math.min(totalPages, currentPage + 1))} aria-label="Next page" className={`${arrow} ${currentPage >= totalPages ? off : ""}`}>›</Link>
+    </div>
+  );
+}
+
+/* ───────────────────────────── Main ───────────────────────────── */
+
+export default function NoticesPageClient({ notices, meta, departments, semesters, groups }: NoticesPageClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [isPending, startTransition] = useTransition();
   const [openCreate, setOpenCreate] = useState(false);
-  const [formData, setFormData] = useState(INITIAL_FORM);
+  const [deleteTarget, setDeleteTarget] = useState<INotice | null>(null);
+  const [formData, setFormData] = useState<FormState>(INITIAL_FORM);
 
-  // Student / teacher async search
-  const [studentSearch, setStudentSearch] = useState("");
-  const [teacherSearch, setTeacherSearch] = useState("");
-  const [students, setStudents] = useState<SelectOption[]>([]);
-  const [teachers, setTeachers] = useState<SelectOption[]>([]);
-  const [studentLoading, setStudentLoading] = useState(false);
-  const [teacherLoading, setTeacherLoading] = useState(false);
+  // Separate search state for the filter bar and the create form
+  const filterStudent = useAsyncSearch(fetchStudents);
+  const filterTeacher = useAsyncSearch(fetchTeachers);
+  const formStudent = useAsyncSearch(fetchStudents);
+  const formTeacher = useAsyncSearch(fetchTeachers);
 
-  const studentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const teacherTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setField = useCallback(
+    <K extends keyof FormState>(key: K, value: FormState[K]) => setFormData((f) => ({ ...f, [key]: value })),
+    []
+  );
 
-  // ── URL filter helpers ────────────────────────────────────
-
+  /* ── URL filter helpers ── */
   const setParam = useCallback(
     (key: string, value: string) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (value) {
-        params.set(key, value);
-      } else {
-        params.delete(key);
-      }
+      if (value) params.set(key, value);
+      else params.delete(key);
       params.delete("page");
       router.push(`${pathname}?${params.toString()}`);
     },
-    [router, pathname, searchParams],
+    [router, pathname, searchParams]
   );
 
+  // Debounce the text search so we don't navigate on every keystroke
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onSearchInput = (value: string) => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setParam("searchTerm", value), 400);
+  };
+  useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
+
   const clearFilters = () => {
+    filterStudent.reset();
+    filterTeacher.reset();
     router.push(pathname);
   };
 
-  // ── Async student search ──────────────────────────────────
-
-  const handleStudentSearch = (q: string) => {
-    setStudentSearch(q);
-    if (studentTimer.current) clearTimeout(studentTimer.current);
-    if (!q.trim()) {
-      setStudents([]);
-      return;
-    }
-    studentTimer.current = setTimeout(async () => {
-      setStudentLoading(true);
-      try {
-        const res = await getStudents({ searchTerm: q, limit: 10 });
-        setStudents(res.data || []);
-      } finally {
-        setStudentLoading(false);
-      }
-    }, 400);
-  };
-
-  // ── Async teacher search ──────────────────────────────────
-
-  const handleTeacherSearch = (q: string) => {
-    setTeacherSearch(q);
-    if (teacherTimer.current) clearTimeout(teacherTimer.current);
-    if (!q.trim()) {
-      setTeachers([]);
-      return;
-    }
-    teacherTimer.current = setTimeout(async () => {
-      setTeacherLoading(true);
-      try {
-        const res = await getAllTeachers({ searchTerm: q, limit: 10 });
-        setTeachers(res.data || []);
-      } finally {
-        setTeacherLoading(false);
-      }
-    }, 400);
-  };
-
-  // ── Delete ────────────────────────────────────────────────
-
-  const handleDelete = (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this notice?")) return;
-
+  /* ── Delete ── */
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
     startTransition(async () => {
       const result = await deleteNotice(id);
-
       if (result.success) {
         toast.success(result.message);
+        setDeleteTarget(null);
         router.refresh();
       } else {
         toast.error(result.message);
@@ -177,17 +439,17 @@ export default function NoticesPageClient({
     });
   };
 
+  /* ── Create ── */
+  const closeCreate = useCallback(() => setOpenCreate(false), []);
+
   const handleCreate = () => {
-    if (!formData.title.trim()) {
-      return toast.warning("Title is required");
-    }
-    if (!formData.description.trim()) {
-      return toast.warning("Description is required");
-    }
+    if (!formData.title.trim()) return toast.warning("Title is required");
+    if (!formData.description.trim()) return toast.warning("Description is required");
+
+    const num = (v: string) => (v ? Number(v) : undefined);
 
     startTransition(async () => {
       const toastId = toast.loading("Creating notice...");
-
       const result = await createNoticeDirect({
         title: formData.title,
         description: formData.description,
@@ -198,711 +460,328 @@ export default function NoticesPageClient({
         priority: formData.priority,
         isPinned: formData.isPinned,
         isPublished: formData.isPublished,
-        departmentId: formData.departmentId
-          ? Number(formData.departmentId)
-          : undefined,
-        semesterId: formData.semesterId
-          ? Number(formData.semesterId)
-          : undefined,
-        groupId: formData.groupId ? Number(formData.groupId) : undefined,
-        studentId: formData.studentId ? Number(formData.studentId) : undefined,
-        teacherId: formData.teacherId ? Number(formData.teacherId) : undefined,
+        departmentId: num(formData.departmentId),
+        semesterId: num(formData.semesterId),
+        groupId: num(formData.groupId),
+        studentId: num(formData.studentId),
+        teacherId: num(formData.teacherId),
       });
 
       if (result.success) {
         toast.success(result.message, { id: toastId });
         setOpenCreate(false);
         setFormData(INITIAL_FORM);
-        setStudentSearch("");
-        setTeacherSearch("");
-        setStudents([]);
-        setTeachers([]);
+        formStudent.reset();
+        formTeacher.reset();
         router.refresh();
       } else {
-        toast.error(result.message ?? "Failed to create notice", {
-          id: toastId,
-        });
+        toast.error(result.message ?? "Failed to create notice", { id: toastId });
       }
     });
   };
 
-  const activeFilters = [
-    "searchTerm",
-    "audienceType",
-    "priority",
-    "departmentId",
-    "semesterId",
-    "groupId",
-    "studentId",
-    "teacherId",
-    "isPinned",
-    "isPublished",
-  ].filter((k) => searchParams.get(k)).length;
-
+  const activeFilters = FILTER_KEYS.filter((k) => searchParams.get(k)).length;
   const needs = AUDIENCE_NEEDS[formData.audienceType];
 
-  // ─────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────
+  const departmentOptions = useMemo(() => departments.map((d) => ({ value: d.id, label: d.name })), [departments]);
+  const semesterOptions = useMemo(() => semesters.map((s) => ({ value: s.id, label: s.name })), [semesters]);
+  const groupOptions = useMemo(() => groups.map((g) => ({ value: g.id, label: groupLabel(g) })), [groups]);
+
+  // Config-driven filter selects (replaces 8 copy-pasted <select>s)
+  const filterSelects = useMemo(
+    () => [
+      { key: "audienceType", placeholder: "All Audiences", options: NOTICE_AUDIENCE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })) },
+      { key: "priority", placeholder: "All Priorities", options: NOTICE_PRIORITY_OPTIONS.map((o) => ({ value: o.value, label: o.label })) },
+      { key: "departmentId", placeholder: "All Departments", options: departmentOptions },
+      { key: "semesterId", placeholder: "All Semesters", options: semesterOptions },
+      { key: "groupId", placeholder: "All Groups", options: groupOptions },
+      { key: "isPublished", placeholder: "Any Status", options: [{ value: "true", label: "Published" }, { value: "false", label: "Draft" }] },
+    ],
+    [departmentOptions, semesterOptions, groupOptions]
+  );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Notices</h1>
-          <p className="text-gray-500 mt-1">
-            Manage institute notices and announcements
-          </p>
-        </div>
-        <button
-          onClick={() => setOpenCreate(true)}
-          className="px-5 py-2.5 rounded-xl bg-black text-white hover:opacity-90 transition text-sm font-medium"
-        >
-          + Create Notice
-        </button>
-      </div>
-
- 
-      <div className="bg-white border rounded-2xl p-5 mb-6 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-
-          <input
-            type="text"
-            placeholder="Search notices..."
-            defaultValue={searchParams.get("searchTerm") ?? ""}
-            onChange={(e) => setParam("searchTerm", e.target.value)}
-            className="border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black col-span-full lg:col-span-1"
-          />
-
- 
-          <select
-            value={searchParams.get("audienceType") ?? ""}
-            onChange={(e) => setParam("audienceType", e.target.value)}
-            className="border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black"
+    <div className="theme-content min-h-screen">
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        {/* ── Header ── */}
+        <div className="st-fade mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="mb-1 bg-gradient-to-r from-primary to-gold bg-clip-text text-xs font-bold uppercase tracking-[0.3em] text-transparent">
+              Dashboard / Notices
+            </p>
+            <h1 className="text-3xl font-black tracking-tight text-foreground">Notices</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Manage institute notices and announcements</p>
+          </div>
+          <button
+            onClick={() => setOpenCreate(true)}
+            className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-primary to-emerald-600 px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30 ring-1 ring-gold/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40 active:scale-95"
           >
-            <option value="">All Audiences</option>
-            {NOTICE_AUDIENCE_TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Priority */}
-          <select
-            value={searchParams.get("priority") ?? ""}
-            onChange={(e) => setParam("priority", e.target.value)}
-            className="border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black"
-          >
-            <option value="">All Priorities</option>
-            {NOTICE_PRIORITY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Sort */}
-          <select
-            value={searchParams.get("sortOrder") ?? "desc"}
-            onChange={(e) => setParam("sortOrder", e.target.value)}
-            className="border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black"
-          >
-            <option value="desc">Newest First</option>
-            <option value="asc">Oldest First</option>
-          </select>
-
-          {/* Department */}
-          <select
-            value={searchParams.get("departmentId") ?? ""}
-            onChange={(e) => setParam("departmentId", e.target.value)}
-            className="border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black"
-          >
-            <option value="">All Departments</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Semester */}
-          <select
-            value={searchParams.get("semesterId") ?? ""}
-            onChange={(e) => setParam("semesterId", e.target.value)}
-            className="border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black"
-          >
-            <option value="">All Semesters</option>
-            {semesters.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Group */}
-          <select
-            value={searchParams.get("groupId") ?? ""}
-            onChange={(e) => setParam("groupId", e.target.value)}
-            className="border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black"
-          >
-            <option value="">All Groups</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-               {g.currentSemester.name} Semester {g.name} Group
-              </option>
-            ))}
-          </select>
-
-          {/* Published */}
-          <select
-            value={searchParams.get("isPublished") ?? ""}
-            onChange={(e) => setParam("isPublished", e.target.value)}
-            className="border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black"
-          >
-            <option value="">Any Status</option>
-            <option value="true">Published</option>
-            <option value="false">Draft</option>
-          </select>
+            <span className="text-lg leading-none">+</span> Create Notice
+          </button>
         </div>
 
-        {/* Student search filter */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="relative">
-            <input
-              type="text"
+        {/* ── Filters ── */}
+        <div className="st-fade theme-card mb-6 space-y-4 p-5" style={{ animationDelay: "60ms" }}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="relative col-span-full lg:col-span-1">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-primary/50">⌕</span>
+              <input
+                type="text"
+                placeholder="Search notices..."
+                defaultValue={searchParams.get("searchTerm") ?? ""}
+                onChange={(e) => onSearchInput(e.target.value)}
+                className={`${CONTROL} pl-10`}
+              />
+            </div>
+
+            {filterSelects.map((f) => (
+              <Select
+                key={f.key}
+                value={searchParams.get(f.key) ?? ""}
+                onChange={(v) => setParam(f.key, v)}
+                placeholder={f.placeholder}
+                options={f.options}
+              />
+            ))}
+
+            <Select
+              value={searchParams.get("sortOrder") ?? "desc"}
+              onChange={(v) => setParam("sortOrder", v)}
+              options={[{ value: "desc", label: "Newest First" }, { value: "asc", label: "Oldest First" }]}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <AsyncPicker
+              state={filterStudent}
               placeholder="Search student by name..."
-              value={studentSearch}
-              onChange={(e) => handleStudentSearch(e.target.value)}
-              className="w-full border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black"
+              onPick={(s) => setParam("studentId", String(s.id))}
             />
-            {studentLoading && (
-              <span className="absolute right-3 top-3 text-xs text-gray-400">
-                Searching...
-              </span>
-            )}
-            {students.length > 0 && (
-              <ul className="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                {students.map((s) => (
-                  <li
-                    key={s.id}
-                    onClick={() => {
-                      setParam("studentId", String(s.id));
-                      setStudentSearch(s.name);
-                      setStudents([]);
-                    }}
-                    className="px-4 py-2.5 text-sm hover:bg-gray-50 cursor-pointer"
-                  >
-                    {s.name}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Teacher search filter */}
-          <div className="relative">
-            <input
-              type="text"
+            <AsyncPicker
+              state={filterTeacher}
               placeholder="Search teacher by name..."
-              value={teacherSearch}
-              onChange={(e) => handleTeacherSearch(e.target.value)}
-              className="w-full border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-black"
+              onPick={(t) => setParam("teacherId", String(t.id))}
             />
-            {teacherLoading && (
-              <span className="absolute right-3 top-3 text-xs text-gray-400">
-                Searching...
+          </div>
+
+          {activeFilters > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary ring-1 ring-inset ring-emerald-200">
+                {activeFilters} filter{activeFilters > 1 ? "s" : ""} active
               </span>
-            )}
-            {teachers.length > 0 && (
-              <ul className="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                {teachers.map((t) => (
-                  <li
-                    key={t.id}
-                    onClick={() => {
-                      setParam("teacherId", String(t.id));
-                      setTeacherSearch(t.name);
-                      setTeachers([]);
-                    }}
-                    className="px-4 py-2.5 text-sm hover:bg-gray-50 cursor-pointer"
-                  >
-                    {t.name}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        {/* Clear filters */}
-        {activeFilters > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">
-              {activeFilters} filter{activeFilters > 1 ? "s" : ""} active
-            </span>
-            <button
-              onClick={clearFilters}
-              className="text-sm text-red-500 hover:text-red-700 underline"
-            >
-              Clear all
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Stats ── */}
-      <div className="flex items-center gap-2 mb-6">
-        <span className="px-4 py-2 rounded-xl bg-gray-100 text-sm font-medium">
-          Total: {meta.total} notice{meta.total !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      {/* ── Empty State ── */}
-      {notices.length === 0 ? (
-        <div className="border rounded-2xl py-20 text-center bg-white">
-          <p className="text-2xl mb-2">📭</p>
-          <h2 className="text-xl font-semibold">No notices found</h2>
-          <p className="text-gray-500 mt-2">
-            {activeFilters > 0
-              ? "Try adjusting your filters"
-              : "Create your first notice"}
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* ── Notice Grid ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {notices.map((notice) => (
-              <div
-                key={notice.id}
-                className="border bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition flex flex-col"
+              <button
+                onClick={clearFilters}
+                className="rounded-lg bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-500 transition-all duration-200 hover:bg-rose-100 hover:text-rose-600 active:scale-95"
               >
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
-                    {NOTICE_AUDIENCE_TYPE_LABELS[notice.audienceType]}
-                  </span>
-                  <span className="text-xs px-3 py-1 rounded-full bg-orange-100 text-orange-700 font-medium">
-                    {NOTICE_PRIORITY_LABELS[notice.priority]}
-                  </span>
-                  {notice.isPinned && (
-                    <span className="text-xs px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 font-medium">
-                      📌 Pinned
-                    </span>
-                  )}
-                  {!notice.isPublished && (
-                    <span className="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-500 font-medium">
-                      Draft
-                    </span>
-                  )}
-                </div>
-
-                <h2 className="text-lg font-semibold mb-2 line-clamp-2">
-                  {notice.title}
-                </h2>
-
-                <p className="text-gray-600 text-sm line-clamp-3 mb-4 flex-1">
-                  {notice.description}
-                </p>
-
-                {notice.noticeDate && (
-                  <p className="text-xs text-gray-400 mb-4">
-                    📅 {new Date(notice.noticeDate).toLocaleDateString("en-GB")}
-                  </p>
-                )}
-
-                <div className="flex items-center gap-3 pt-4 border-t">
-                  <Link
-                    href={`/admin/dashboard/notices/${notice.id}`}
-                    className="flex-1 text-center px-4 py-2 rounded-lg border hover:bg-gray-50 text-sm font-medium transition"
-                  >
-                    View
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(notice.id)}
-                    disabled={isPending}
-                    className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 text-sm font-medium disabled:opacity-50 transition"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* ── Pagination ── */}
-          {meta.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-10">
-              {Array.from({ length: meta.totalPages }).map((_, i) => {
-                const page = i + 1;
-                return (
-                  <Link
-                    key={page}
-                    href={`?${new URLSearchParams({
-                      ...Object.fromEntries(searchParams.entries()),
-                      page: String(page),
-                    }).toString()}`}
-                    className={`w-10 h-10 flex items-center justify-center rounded-lg border text-sm font-medium transition ${
-                      meta.currentPage === page
-                        ? "bg-black text-white border-black"
-                        : "bg-white hover:bg-gray-50"
-                    }`}
-                  >
-                    {page}
-                  </Link>
-                );
-              })}
+                ✕ Clear all
+              </button>
             </div>
           )}
-        </>
+        </div>
+
+        {/* ── Stats ── */}
+        <div className="st-fade mb-6" style={{ animationDelay: "100ms" }}>
+          <span className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-gradient-to-br from-primary to-gold" />
+            Total: <span className="text-primary">{meta.total}</span> notice{meta.total !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {/* ── Content ── */}
+        <div className={`transition-opacity duration-300 ${isPending ? "opacity-60" : "opacity-100"}`}>
+          {notices.length === 0 ? (
+            <div className="st-fade theme-card py-20 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-accent text-3xl ring-1 ring-gold-soft">
+                📭
+              </div>
+              <h2 className="text-xl font-bold text-foreground">No notices found</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {activeFilters > 0 ? "Try adjusting your filters" : "Create your first notice"}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {notices.map((notice, i) => (
+                  <NoticeCard key={notice.id} notice={notice} index={i} onDelete={setDeleteTarget} disabled={isPending} />
+                ))}
+              </div>
+              {meta.totalPages > 1 && <Pagination currentPage={meta.currentPage} totalPages={meta.totalPages} />}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Delete confirm ── */}
+      {deleteTarget && (
+        <ModalShell title="Delete Notice" size="max-w-sm" onClose={() => !isPending && setDeleteTarget(null)}>
+          <div className="p-6">
+            <p className="mb-6 text-sm text-muted-foreground">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-primary">{deleteTarget.title}</span>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={isPending}
+                className="flex-1 rounded-xl border border-border bg-muted/60 px-4 py-2.5 text-sm font-semibold text-foreground/70 transition-all duration-200 hover:bg-muted active:scale-95 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isPending}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 disabled:opacity-60 disabled:hover:translate-y-0"
+              >
+                {isPending ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Deleting…
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </button>
+            </div>
+          </div>
+        </ModalShell>
       )}
 
       {/* ── Create Modal ── */}
       {openCreate && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white rounded-t-3xl px-6 pt-6 pb-4 border-b flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Create Notice</h2>
+        <ModalShell title="Create Notice" onClose={closeCreate}>
+          <div className="space-y-5 p-6">
+            <Field label="Title" required>
+              <input type="text" value={formData.title} onChange={(e) => setField("title", e.target.value)} placeholder="Enter notice title" className={CONTROL} />
+            </Field>
+
+            <Field label="Description" required>
+              <textarea rows={4} value={formData.description} onChange={(e) => setField("description", e.target.value)} placeholder="Write notice details" className={CONTROL} />
+            </Field>
+
+            <Field label="Attachment URL">
+              <input type="url" value={formData.attachmentUrl} onChange={(e) => setField("attachmentUrl", e.target.value)} placeholder="https://..." className={CONTROL} />
+            </Field>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field label="Notice Date">
+                <input type="date" value={formData.noticeDate} onChange={(e) => setField("noticeDate", e.target.value)} className={CONTROL} />
+              </Field>
+              <Field label="Expiry Date">
+                <input type="date" value={formData.expiryDate} onChange={(e) => setField("expiryDate", e.target.value)} className={CONTROL} />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field label="Audience Type">
+                <Select
+                  value={formData.audienceType}
+                  onChange={(v) => {
+                    // reset targeting when audience changes
+                    setFormData((f) => ({
+                      ...f,
+                      audienceType: v as NoticeAudienceType,
+                      departmentId: "", semesterId: "", groupId: "", studentId: "", teacherId: "",
+                    }));
+                    formStudent.reset();
+                    formTeacher.reset();
+                  }}
+                  options={NOTICE_AUDIENCE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                />
+              </Field>
+              <Field label="Priority">
+                <Select
+                  value={formData.priority}
+                  onChange={(v) => setField("priority", v as NoticePriority)}
+                  options={NOTICE_PRIORITY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                />
+              </Field>
+            </div>
+
+            {needs.includes("departmentId") && (
+              <Field label="Department" required>
+                <Select value={formData.departmentId} onChange={(v) => setField("departmentId", v)} placeholder="Select department" options={departmentOptions} />
+              </Field>
+            )}
+
+            {needs.includes("semesterId") && (
+              <Field label="Semester" required>
+                <Select value={formData.semesterId} onChange={(v) => setField("semesterId", v)} placeholder="Select semester" options={semesterOptions} />
+              </Field>
+            )}
+
+            {needs.includes("groupId") && (
+              <Field label="Group" required>
+                <Select value={formData.groupId} onChange={(v) => setField("groupId", v)} placeholder="Select group" options={groupOptions} />
+              </Field>
+            )}
+
+            {needs.includes("studentId") && (
+              <Field label="Student" required>
+                <AsyncPicker
+                  state={formStudent}
+                  placeholder="Search student by name..."
+                  onType={() => setField("studentId", "")}
+                  onPick={(s) => setField("studentId", String(s.id))}
+                />
+              </Field>
+            )}
+
+            {needs.includes("teacherId") && (
+              <Field label="Teacher" required>
+                <AsyncPicker
+                  state={formTeacher}
+                  placeholder="Search teacher by name..."
+                  onType={() => setField("teacherId", "")}
+                  onPick={(t) => setField("teacherId", String(t.id))}
+                />
+              </Field>
+            )}
+
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-gradient-to-br from-secondary/70 to-card p-4">
+              {(
+                [
+                  ["isPinned", "📌 Pin this notice"],
+                  ["isPublished", "🌐 Publish immediately"],
+                ] as const
+              ).map(([key, text]) => (
+                <label key={key} className="flex cursor-pointer select-none items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={formData[key]}
+                    onChange={(e) => setField(key, e.target.checked)}
+                    className="h-4 w-4 rounded accent-[var(--primary)]"
+                  />
+                  <span className="text-sm font-semibold text-foreground">{text}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
               <button
-                onClick={() => setOpenCreate(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 text-lg"
+                onClick={closeCreate}
+                className="rounded-xl border border-border bg-muted/60 px-5 py-2.5 text-sm font-semibold text-foreground/70 transition-all duration-200 hover:bg-muted hover:text-foreground active:scale-95"
               >
-                ✕
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={isPending}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-primary to-emerald-600 px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-95 disabled:opacity-60 disabled:hover:translate-y-0"
+              >
+                {isPending ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Notice"
+                )}
               </button>
             </div>
-
-            <div className="p-6 space-y-5">
-              {/* Title */}
-              <Field label="Title" required>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) =>
-                    setFormData({ ...formData, title: e.target.value })
-                  }
-                  placeholder="Enter notice title"
-                  className={inputCls}
-                />
-              </Field>
-
-              {/* Description */}
-              <Field label="Description" required>
-                <textarea
-                  rows={4}
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  placeholder="Write notice details"
-                  className={inputCls}
-                />
-              </Field>
-
-              {/* Attachment */}
-              <Field label="Attachment URL">
-                <input
-                  type="url"
-                  value={formData.attachmentUrl}
-                  onChange={(e) =>
-                    setFormData({ ...formData, attachmentUrl: e.target.value })
-                  }
-                  placeholder="https://..."
-                  className={inputCls}
-                />
-              </Field>
-
-              {/* Dates */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="Notice Date">
-                  <input
-                    type="date"
-                    value={formData.noticeDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, noticeDate: e.target.value })
-                    }
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="Expiry Date">
-                  <input
-                    type="date"
-                    value={formData.expiryDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, expiryDate: e.target.value })
-                    }
-                    className={inputCls}
-                  />
-                </Field>
-              </div>
-
-              {/* Audience + Priority */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="Audience Type">
-                  <select
-                    value={formData.audienceType}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        audienceType: e.target.value as NoticeAudienceType,
-                        // reset targeting when audience changes
-                        departmentId: "",
-                        semesterId: "",
-                        groupId: "",
-                        studentId: "",
-                        teacherId: "",
-                      })
-                    }
-                    className={inputCls}
-                  >
-                    {NOTICE_AUDIENCE_TYPE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Priority">
-                  <select
-                    value={formData.priority}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        priority: e.target.value as NoticePriority,
-                      })
-                    }
-                    className={inputCls}
-                  >
-                    {NOTICE_PRIORITY_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-
-              {/* Audience-specific targeting */}
-              {needs.includes("departmentId") && (
-                <Field label="Department" required>
-                  <select
-                    value={formData.departmentId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, departmentId: e.target.value })
-                    }
-                    className={inputCls}
-                  >
-                    <option value="">Select department</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-
-              {needs.includes("semesterId") && (
-                <Field label="Semester" required>
-                  <select
-                    value={formData.semesterId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, semesterId: e.target.value })
-                    }
-                    className={inputCls}
-                  >
-                    <option value="">Select semester</option>
-                    {semesters.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-
-              {needs.includes("groupId") && (
-                <Field label="Group" required>
-                  <select
-                    value={formData.groupId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, groupId: e.target.value })
-                    }
-                    className={inputCls}
-                  >
-                    <option value="">Select group</option>
-                    {groups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                       {g.currentSemester.name} Semester {g.name} Group
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-
-              {needs.includes("studentId") && (
-                <Field label="Student" required>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={studentSearch}
-                      onChange={(e) => {
-                        handleStudentSearch(e.target.value);
-                        setFormData({ ...formData, studentId: "" });
-                      }}
-                      placeholder="Search student by name..."
-                      className={inputCls}
-                    />
-                    {studentLoading && (
-                      <span className="absolute right-3 top-3 text-xs text-gray-400">
-                        Searching...
-                      </span>
-                    )}
-                    {students.length > 0 && (
-                      <ul className="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                        {students.map((s) => (
-                          <li
-                            key={s.id}
-                            onClick={() => {
-                              setFormData({
-                                ...formData,
-                                studentId: String(s.id),
-                              });
-                              setStudentSearch(s.name);
-                              setStudents([]);
-                            }}
-                            className="px-4 py-2.5 text-sm hover:bg-gray-50 cursor-pointer"
-                          >
-                            {s.name}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </Field>
-              )}
-
-              {needs.includes("teacherId") && (
-                <Field label="Teacher" required>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={teacherSearch}
-                      onChange={(e) => {
-                        handleTeacherSearch(e.target.value);
-                        setFormData({ ...formData, teacherId: "" });
-                      }}
-                      placeholder="Search teacher by name..."
-                      className={inputCls}
-                    />
-                    {teacherLoading && (
-                      <span className="absolute right-3 top-3 text-xs text-gray-400">
-                        Searching...
-                      </span>
-                    )}
-                    {teachers.length > 0 && (
-                      <ul className="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                        {teachers.map((t) => (
-                          <li
-                            key={t.id}
-                            onClick={() => {
-                              setFormData({
-                                ...formData,
-                                teacherId: String(t.id),
-                              });
-                              setTeacherSearch(t.name);
-                              setTeachers([]);
-                            }}
-                            className="px-4 py-2.5 text-sm hover:bg-gray-50 cursor-pointer"
-                          >
-                            {t.name}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </Field>
-              )}
-
-              {/* Toggles */}
-              <div className="flex flex-col gap-3 pt-1">
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={formData.isPinned}
-                    onChange={(e) =>
-                      setFormData({ ...formData, isPinned: e.target.checked })
-                    }
-                    className="w-4 h-4 rounded"
-                  />
-                  <span className="text-sm font-medium">
-                    📌 Pin this notice
-                  </span>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={formData.isPublished}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        isPublished: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4 rounded"
-                  />
-                  <span className="text-sm font-medium">
-                    🌐 Publish immediately
-                  </span>
-                </label>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t">
-                <button
-                  onClick={() => setOpenCreate(false)}
-                  className="px-5 py-2.5 rounded-xl border hover:bg-gray-50 text-sm font-medium transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreate}
-                  disabled={isPending}
-                  className="px-5 py-2.5 rounded-xl bg-black text-white hover:opacity-90 disabled:opacity-50 text-sm font-medium transition"
-                >
-                  {isPending ? "Creating..." : "Create Notice"}
-                </button>
-              </div>
-            </div>
           </div>
-        </div>
+        </ModalShell>
       )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
-
-const inputCls =
-  "w-full border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-black";
-
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium mb-2">
-        {label}
-        {required && <span className="text-red-500 ml-1">*</span>}
-      </label>
-      {children}
     </div>
   );
 }

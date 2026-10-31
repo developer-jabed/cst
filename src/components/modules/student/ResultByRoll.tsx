@@ -4,13 +4,31 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useState, useTransition, useCallback, useMemo } from "react";
 import Image from "next/image";
 
+// ── Palette (matches Course Catalog) ──────────────────────────────────────────
+const C = {
+  cream: "#faf8f3",
+  sand: "#f7f3ea",
+  line: "#e8e0d0",
+  lineSoft: "#f0ebe3",
+  emerald: "#064e3b",
+  teal: "#0f766e",
+  green: "#059669",
+  gold: "#c9a24b",
+  goldDeep: "#b8923f",
+  ink: "#0f172a",
+  slate: "#475569",
+  muted: "#94a3b8",
+  rose: "#be123c",
+  amber: "#b45309",
+};
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Student {
   id: number;
   name: string;
   roll: string;
   registration: string;
-  profilePhoto?: string | null; // added
+  profilePhoto?: string | null;
 }
 interface Semester {
   id: number;
@@ -86,8 +104,6 @@ function getBestGpa(results: DiplomaResult[]): number | null {
   return best;
 }
 
-
-
 function countCompletedSemesters(results: DiplomaResult[]): number {
   const set = new Set<number>();
   results.forEach((r) => nonNullGpas(r).forEach((g) => set.add(g.order)));
@@ -118,15 +134,20 @@ function getInitials(name?: string) {
     .toUpperCase();
 }
 
-
+function gpaColor(value: number) {
+  if (value >= 3.5) return C.green;
+  if (value >= 2.5) return C.teal;
+  if (value >= 2.0) return C.goldDeep;
+  return C.rose;
+}
 
 const STATUS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-  PASSED: { bg: "#f0fdf4", text: "#15803d", border: "#bbf7d0", dot: "#22c55e" },
-  FAILED: { bg: "#fff1f2", text: "#be123c", border: "#fecdd3", dot: "#f43f5e" },
-  REFERRED: { bg: "#fffbeb", text: "#b45309", border: "#fde68a", dot: "#f59e0b" },
-  WITHHELD: { bg: "#fffbeb", text: "#b45309", border: "#fde68a", dot: "#f59e0b" },
-  ABSENT: { bg: "#f8fafc", text: "#475569", border: "#e2e8f0", dot: "#94a3b8" },
-  INCOMPLETE: { bg: "#faf5ff", text: "#7e22ce", border: "#e9d5ff", dot: "#a855f7" },
+  PASSED: { bg: "#ecfdf5", text: "#065f46", border: "#a7f3d0", dot: C.green },
+  FAILED: { bg: "#fff1f2", text: C.rose, border: "#fecdd3", dot: "#f43f5e" },
+  REFERRED: { bg: "#fbf6e8", text: "#8a6a1f", border: "#ecd9a6", dot: C.gold },
+  WITHHELD: { bg: "#fbf6e8", text: "#8a6a1f", border: "#ecd9a6", dot: C.gold },
+  ABSENT: { bg: "#f8fafc", text: C.slate, border: "#e2e8f0", dot: C.muted },
+  INCOMPLETE: { bg: "#f5f3ff", text: "#6d28d9", border: "#ddd6fe", dot: "#8b5cf6" },
 };
 
 // ── Sub components ────────────────────────────────────────────────────────────
@@ -145,7 +166,7 @@ function StatusBadge({ status }: { status: string }) {
         border: `1px solid ${c.border}`,
         fontSize: 11,
         fontWeight: 700,
-        letterSpacing: ".04em",
+        letterSpacing: ".06em",
         whiteSpace: "nowrap",
       }}
     >
@@ -156,27 +177,23 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function GpaChip({ value, label }: { value: number; label: string }) {
-  const color =
-    value >= 3.5 ? "#15803d" : value >= 2.5 ? "#0369a1" : value >= 2.0 ? "#b45309" : "#be123c";
-
-    console.log()
-
+  const color = gpaColor(value);
   return (
     <div style={{ textAlign: "center" }}>
       <div
         style={{
-          width: 62,
-          height: 62,
+          width: 60,
+          height: 60,
           borderRadius: "50%",
-          border: `3px solid ${color}`,
+          border: `2.5px solid ${color}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: `${color}12`,
-          boxShadow: `0 4px 12px ${color}22`,
+          background: `${color}10`,
+          boxShadow: `0 4px 12px ${color}1f`,
         }}
       >
-        <span style={{ fontSize: 14.5, fontWeight: 800, color, fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color, fontVariantNumeric: "tabular-nums" }}>
           {value.toFixed(2)}
         </span>
       </div>
@@ -185,10 +202,10 @@ function GpaChip({ value, label }: { value: number; label: string }) {
           display: "block",
           marginTop: 5,
           fontSize: 10,
-          color: "#94a3b8",
+          color: C.muted,
           fontWeight: 700,
           textTransform: "uppercase",
-          letterSpacing: ".05em",
+          letterSpacing: ".06em",
         }}
       >
         {label}
@@ -199,7 +216,7 @@ function GpaChip({ value, label }: { value: number; label: string }) {
 
 function ProgressRing({ completed, total = 7 }: { completed: number; total?: number }) {
   const size = 88;
-  const stroke = 8;
+  const stroke = 7;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const progress = Math.min(completed / total, 1);
@@ -208,20 +225,19 @@ function ProgressRing({ completed, total = 7 }: { completed: number; total?: num
   return (
     <div style={{ position: "relative", width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <defs>
+          <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={C.emerald} />
+            <stop offset="100%" stopColor={C.teal} />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={C.lineSoft} strokeWidth={stroke} />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#e2e8f0"
-          strokeWidth={stroke}
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#1e40af"
+          stroke="url(#ringGrad)"
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -239,12 +255,29 @@ function ProgressRing({ completed, total = 7 }: { completed: number; total?: num
           justifyContent: "center",
         }}
       >
-        <span style={{ fontSize: 20, fontWeight: 800, color: "#1e40af", lineHeight: 1 }}>
+        <span style={{ fontSize: 20, fontWeight: 800, color: C.emerald, lineHeight: 1 }}>
           {completed}
         </span>
-        <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>/ {total}</span>
+        <span style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>/ {total}</span>
       </div>
     </div>
+  );
+}
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      style={{
+        margin: "0 0 10px",
+        fontSize: 11,
+        color: C.goldDeep,
+        textTransform: "uppercase",
+        letterSpacing: ".18em",
+        fontWeight: 800,
+      }}
+    >
+      {children}
+    </p>
   );
 }
 
@@ -265,29 +298,18 @@ function GpaTrend({ results }: { results: DiplomaResult[] }) {
   const min = 0;
 
   return (
-    <div style={{ marginTop: 4 }}>
-      <p
-        style={{
-          margin: "0 0 10px",
-          fontSize: 11,
-          color: "#94a3b8",
-          textTransform: "uppercase",
-          letterSpacing: ".07em",
-          fontWeight: 700,
-        }}
-      >
-        GPA Trend
-      </p>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 72 }}>
+    <div>
+      <Eyebrow>GPA Trend</Eyebrow>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 84 }}>
         {points.map((p) => {
           const height = ((p.value - min) / (max - min)) * 100;
-          const color =
-            p.value >= 3.5 ? "#22c55e" : p.value >= 2.5 ? "#3b82f6" : p.value >= 2 ? "#f59e0b" : "#f43f5e";
+          const color = gpaColor(p.value);
           return (
-            <div key={p.order} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#0f172a" }}>
-                {p.value.toFixed(2)}
-              </span>
+            <div
+              key={p.order}
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%", justifyContent: "flex-end" }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.ink }}>{p.value.toFixed(2)}</span>
               <div
                 style={{
                   width: "100%",
@@ -295,11 +317,11 @@ function GpaTrend({ results }: { results: DiplomaResult[] }) {
                   height: `${height}%`,
                   minHeight: 8,
                   borderRadius: 8,
-                  background: `linear-gradient(180deg, ${color}, ${color}99)`,
+                  background: `linear-gradient(180deg, ${color}, ${color}aa)`,
                   transition: "height 0.4s ease",
                 }}
               />
-              <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>S{p.order}</span>
+              <span style={{ fontSize: 10, color: C.muted, fontWeight: 700 }}>S{p.order}</span>
             </div>
           );
         })}
@@ -310,9 +332,9 @@ function GpaTrend({ results }: { results: DiplomaResult[] }) {
 
 function SubjectChip({ subject }: { subject: SubjectBreakdownItem }) {
   const isFailed = subject.type === "FAILED";
-  const color = isFailed ? "#be123c" : "#b45309";
-  const bg = isFailed ? "#fff1f2" : "#fffbeb";
-  const border = isFailed ? "#fecdd3" : "#fde68a";
+  const color = isFailed ? C.rose : "#8a6a1f";
+  const bg = isFailed ? "#fff7f8" : "#fdf9ee";
+  const border = isFailed ? "#fecdd3" : "#ecd9a6";
 
   return (
     <div
@@ -328,9 +350,9 @@ function SubjectChip({ subject }: { subject: SubjectBreakdownItem }) {
     >
       <span
         style={{
-          fontFamily: "monospace",
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
           fontSize: 12,
-          fontWeight: 800,
+          fontWeight: 700,
           color,
           background: "#fff",
           border: `1px solid ${border}`,
@@ -342,9 +364,9 @@ function SubjectChip({ subject }: { subject: SubjectBreakdownItem }) {
         {subject.code}
       </span>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{subject.name}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{subject.name}</div>
         {subject.semesterName && (
-          <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, marginTop: 1 }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginTop: 1 }}>
             {subject.semesterName} Semester
           </div>
         )}
@@ -361,7 +383,16 @@ function SubjectBreakdownBlock({ r }: { r: DiplomaResult }) {
     <div style={{ display: "grid", gap: 12 }}>
       {failed.length > 0 && (
         <div>
-          <p style={{ margin: "0 0 8px", fontSize: 11, color: "#be123c", textTransform: "uppercase", letterSpacing: ".07em", fontWeight: 800 }}>
+          <p
+            style={{
+              margin: "0 0 8px",
+              fontSize: 11,
+              color: C.rose,
+              textTransform: "uppercase",
+              letterSpacing: ".1em",
+              fontWeight: 800,
+            }}
+          >
             Failed Subjects ({failed.length})
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -373,7 +404,16 @@ function SubjectBreakdownBlock({ r }: { r: DiplomaResult }) {
       )}
       {referred.length > 0 && (
         <div>
-          <p style={{ margin: "0 0 8px", fontSize: 11, color: "#b45309", textTransform: "uppercase", letterSpacing: ".07em", fontWeight: 800 }}>
+          <p
+            style={{
+              margin: "0 0 8px",
+              fontSize: 11,
+              color: "#8a6a1f",
+              textTransform: "uppercase",
+              letterSpacing: ".1em",
+              fontWeight: 800,
+            }}
+          >
             Referred Subjects ({referred.length})
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -409,8 +449,8 @@ function StudentAvatar({
           borderRadius: 18,
           overflow: "hidden",
           flexShrink: 0,
-          boxShadow: "0 8px 20px rgba(30,64,175,.22)",
-          border: "3px solid #fff",
+          boxShadow: "0 8px 20px rgba(6,78,59,.22)",
+          border: `3px solid ${C.gold}`,
         }}
       >
         <Image
@@ -430,15 +470,15 @@ function StudentAvatar({
         width: size,
         height: size,
         borderRadius: 18,
-        background: "linear-gradient(135deg,#1e40af,#3b82f6)",
+        background: `linear-gradient(135deg,${C.emerald},${C.teal})`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         fontSize: size * 0.36,
         fontWeight: 800,
         color: "#fff",
-        boxShadow: "0 8px 20px rgba(30,64,175,.28)",
-        border: "3px solid #fff",
+        boxShadow: "0 8px 20px rgba(6,78,59,.25)",
+        border: `3px solid ${C.gold}`,
         flexShrink: 0,
         letterSpacing: "-0.5px",
       }}
@@ -490,66 +530,63 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Nunito:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&display=swap');
         .rc *{box-sizing:border-box}
-        .rc{font-family:'Nunito',sans-serif;background:#f1f5f9;min-height:calc(100vh - 72px);color:#0f172a}
-        .rc-card{background:#fff;border:1px solid #e2e8f0;border-radius:20px;box-shadow:0 1px 2px rgba(0,0,0,.03),0 4px 16px rgba(0,0,0,.04)}
-        .rc-input{font-family:'Nunito',sans-serif;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;color:#0f172a;padding:14px 18px;font-size:15px;width:100%;outline:none;transition:border-color .2s,box-shadow .2s}
-        .rc-input:focus{border-color:#1e40af;background:#fff;box-shadow:0 0 0 4px rgba(30,64,175,.12)}
-        .rc-input::placeholder{color:#94a3b8}
-        .rc-btn{font-family:'Nunito',sans-serif;border:none;border-radius:14px;padding:14px 28px;font-size:15px;font-weight:700;cursor:pointer;transition:all .18s;display:inline-flex;align-items:center;justify-content:center;gap:8px}
-        .rc-btn-primary{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;box-shadow:0 4px 16px rgba(30,64,175,.28)}
-        .rc-btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px rgba(30,64,175,.35)}
+        .rc{background:${C.cream};min-height:calc(100vh - 72px);color:${C.ink}}
+        .rc-card{background:#fff;border:1px solid ${C.line};border-radius:18px;box-shadow:0 4px 24px rgba(6,78,59,.06);overflow:hidden;position:relative}
+        .rc-bar{height:4px;width:100%;background:linear-gradient(90deg,${C.emerald},${C.gold},${C.teal})}
+        .rc-input{font:inherit;background:#fff;border:1px solid ${C.line};border-radius:12px;color:#1e293b;padding:12px 16px;font-size:15px;width:100%;outline:none;transition:border-color .2s,box-shadow .2s;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+        .rc-input:focus{border-color:${C.gold};box-shadow:0 0 0 3px rgba(201,162,75,.2)}
+        .rc-input::placeholder{color:${C.muted}}
+        .rc-btn{font:inherit;border:none;border-radius:12px;padding:12px 26px;font-size:14.5px;font-weight:700;cursor:pointer;transition:all .18s;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+        .rc-btn-primary{background:linear-gradient(135deg,${C.emerald},${C.teal});color:#fff;box-shadow:0 4px 14px rgba(6,78,59,.25)}
+        .rc-btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px rgba(6,78,59,.32)}
         .rc-btn-primary:disabled{opacity:.65;cursor:not-allowed;transform:none}
+        .rc-sem:hover{background:${C.cream}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         .fu{animation:fadeUp .35s ease both}
         .fu1{animation-delay:.05s}.fu2{animation-delay:.1s}
         @keyframes spin{to{transform:rotate(360deg)}}
-        .spinner{width:16px;height:16px;border:2.5px solid #bfdbfe;border-top-color:#1e40af;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+        .spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
       `}</style>
 
-      <div className="rc" style={{ padding: "48px 20px 56px" }}>
+      <div className="rc" style={{ padding: "56px 20px 64px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           {/* Header */}
-          <div className="fu" style={{ marginBottom: 28 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
-              <div
-                style={{
-                  width: 6,
-                  height: 32,
-                  background: "linear-gradient(180deg,#1e40af,#3b82f6)",
-                  borderRadius: 4,
-                }}
-              />
-              <h1
-                style={{
-                  fontFamily: "'Lora',serif",
-                  fontSize: 28,
-                  fontWeight: 700,
-                  margin: 0,
-                  letterSpacing: "-.4px",
-                  color: "#0f172a",
-                }}
-              >
-                Diploma Results Portal
-              </h1>
-            </div>
-            <p style={{ color: "#64748b", fontSize: 15, margin: "0 0 0 20px" }}>
-              Enter your roll number to view semester-wise results
+          <div className="fu" style={{ marginBottom: 32 }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 11,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: ".22em",
+                color: C.goldDeep,
+              }}
+            >
+              Academics
+            </p>
+            <h1
+              style={{
+                fontFamily: "'Lora',serif",
+                fontSize: 34,
+                fontWeight: 700,
+                margin: "8px 0 0",
+                letterSpacing: "-.5px",
+                color: "#0f172a",
+              }}
+            >
+              Diploma Results Portal
+            </h1>
+            <p style={{ color: "#475569", fontSize: 15, margin: "8px 0 0", maxWidth: 440 }}>
+              Enter your roll number to view semester-wise results.
             </p>
           </div>
 
           {/* Search */}
-          <div
-            className="rc-card fu fu1"
-            style={{
-              padding: 20,
-              marginBottom: 28,
-              borderLeft: "5px solid #1e40af",
-              background: "linear-gradient(135deg,#ffffff 0%,#f8fafc 100%)",
-            }}
-          >
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div className="rc-card fu fu1" style={{ marginBottom: 28 }}>
+            <div className="rc-bar" />
+            <div style={{ padding: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
               <input
                 className="rc-input"
                 style={{ flex: 1, minWidth: 220 }}
@@ -572,68 +609,54 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
 
           {/* Empty states */}
           {!initialRoll && (
-            <div
-              className="rc-card"
-              style={{
-                padding: "72px 32px",
-                textAlign: "center",
-                borderLeft: "5px solid #e2e8f0",
-              }}
-            >
+            <div className="rc-card" style={{ padding: "72px 32px", textAlign: "center" }}>
               <div
                 style={{
-                  width: 76,
-                  height: 76,
-                  borderRadius: 22,
-                  background: "linear-gradient(135deg,#eff6ff,#dbeafe)",
+                  width: 64,
+                  height: 64,
+                  borderRadius: 18,
+                  background: C.sand,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  margin: "0 auto 18px",
-                  fontSize: 34,
+                  margin: "0 auto 16px",
+                  fontSize: 30,
                 }}
               >
                 🎓
               </div>
-              <p style={{ color: "#0f172a", fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>
+              <p style={{ color: C.ink, fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>
                 Search Student Results
               </p>
-              <p style={{ color: "#94a3b8", fontSize: 14.5, margin: 0 }}>
+              <p style={{ color: C.muted, fontSize: 14.5, margin: 0 }}>
                 Enter a roll number above to view semester-wise results
               </p>
             </div>
           )}
 
           {initialRoll && rollResults.length === 0 && (
-            <div
-              className="rc-card"
-              style={{
-                padding: "72px 32px",
-                textAlign: "center",
-                borderLeft: "5px solid #fecdd3",
-              }}
-            >
+            <div className="rc-card" style={{ padding: "72px 32px", textAlign: "center" }}>
               <div
                 style={{
-                  width: 76,
-                  height: 76,
-                  borderRadius: 22,
-                  background: "#fff1f2",
+                  width: 64,
+                  height: 64,
+                  borderRadius: 18,
+                  background: C.sand,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  margin: "0 auto 18px",
-                  fontSize: 34,
+                  margin: "0 auto 16px",
+                  fontSize: 30,
                 }}
               >
                 📭
               </div>
-              <p style={{ color: "#0f172a", fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>
+              <p style={{ color: C.ink, fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>
                 No Results Found
               </p>
-              <p style={{ color: "#94a3b8", fontSize: 14.5, margin: 0 }}>
+              <p style={{ color: C.muted, fontSize: 14.5, margin: 0 }}>
                 No results found for roll{" "}
-                <strong style={{ color: "#1e40af" }}>{initialRoll}</strong>
+                <strong style={{ color: C.emerald }}>{initialRoll}</strong>
               </p>
             </div>
           )}
@@ -641,72 +664,51 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
           {/* Results */}
           {rollResults.length > 0 && stats && (
             <div>
-              {/* ── Student Banner (with photo) ── */}
-              <div
-                className="rc-card fu"
-                style={{
-                  padding: "24px 26px",
-                  marginBottom: 18,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 22,
-                  flexWrap: "wrap",
-                  borderLeft: "5px solid #1e40af",
-                  background: "linear-gradient(135deg,#ffffff 0%,#f8fafc 100%)",
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                {/* subtle decorative circle */}
+              {/* Student banner */}
+              <div className="rc-card fu" style={{ marginBottom: 18 }}>
+                <div className="rc-bar" />
                 <div
                   style={{
-                    position: "absolute",
-                    right: -40,
-                    top: -40,
-                    width: 160,
-                    height: 160,
-                    borderRadius: "50%",
-                    background: "radial-gradient(circle, rgba(30,64,175,.06) 0%, transparent 70%)",
-                    pointerEvents: "none",
+                    padding: "24px 28px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 22,
+                    flexWrap: "wrap",
+                    background: `linear-gradient(135deg,#ffffff 0%,${C.sand} 100%)`,
                   }}
-                />
+                >
+                  <StudentAvatar name={student?.name} photo={student?.profilePhoto} size={72} />
 
-                <StudentAvatar
-                  name={student?.name}
-                  photo={student?.profilePhoto}
-                  size={72}
-                />
+                  <div style={{ flex: 1, minWidth: 180 }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontWeight: 800,
+                        fontSize: 21,
+                        color: C.ink,
+                        letterSpacing: "-0.3px",
+                      }}
+                    >
+                      {student?.name}
+                    </p>
+                    <p style={{ margin: "5px 0 0", fontSize: 14, color: "#64748b" }}>
+                      Roll: <strong style={{ color: C.emerald }}>{rollResults[0].roll}</strong>
+                      {student?.registration && (
+                        <>
+                          {" "}
+                          · Reg: <strong style={{ color: "#334155" }}>{student.registration}</strong>
+                        </>
+                      )}
+                    </p>
+                    <p style={{ margin: "6px 0 0", fontSize: 13, color: C.muted }}>
+                      {rollResults[0].instituteName}
+                      <span style={{ margin: "0 6px", opacity: 0.5 }}>•</span>
+                      Code: {rollResults[0].instituteCode}
+                    </p>
+                  </div>
 
-                <div style={{ flex: 1, minWidth: 180 }}>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontWeight: 800,
-                      fontSize: 20,
-                      color: "#0f172a",
-                      letterSpacing: "-0.3px",
-                    }}
-                  >
-                    {student?.name}
-                  </p>
-                  <p style={{ margin: "5px 0 0", fontSize: 14, color: "#64748b" }}>
-                    Roll:{" "}
-                    <strong style={{ color: "#1e40af" }}>{rollResults[0].roll}</strong>
-                    {student?.registration && (
-                      <>
-                        {" "}
-                        · Reg: <strong style={{ color: "#334155" }}>{student.registration}</strong>
-                      </>
-                    )}
-                  </p>
-                  <p style={{ margin: "6px 0 0", fontSize: 13, color: "#94a3b8" }}>
-                    {rollResults[0].instituteName}
-                    <span style={{ margin: "0 6px", opacity: 0.5 }}>•</span>
-                    Code: {rollResults[0].instituteCode}
-                  </p>
+                  <ProgressRing completed={stats.completed} />
                 </div>
-
-                <ProgressRing completed={stats.completed} />
               </div>
 
               {/* Stats row */}
@@ -720,44 +722,51 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
                 }}
               >
                 {[
-                  { label: "Semesters", value: stats.completed, color: "#1e40af", border: "#1e40af" },
-                  { label: "Passed", value: stats.passed, color: "#15803d", border: "#22c55e" },
-                  { label: "Failed", value: stats.failed, color: "#be123c", border: "#f43f5e" },
+                  { label: "Semesters", value: stats.completed, color: C.emerald, bar: C.emerald },
+                  { label: "Passed", value: stats.passed, color: C.green, bar: C.green },
+                  { label: "Failed", value: stats.failed, color: C.rose, bar: "#f43f5e" },
                   {
                     label: "Best GPA",
                     value: stats.best != null ? stats.best.toFixed(2) : "—",
-                    color: "#b45309",
-                    border: "#f59e0b",
+                    color: C.goldDeep,
+                    bar: C.gold,
                   },
                 ].map((s) => (
                   <div
                     key={s.label}
                     className="rc-card"
                     style={{
-                      padding: "16px 18px",
-                      borderLeft: `4px solid ${s.border}`,
+                      padding: "16px 18px 16px 22px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
                     }}
                   >
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 5,
+                        height: 36,
+                        borderRadius: 999,
+                        background: s.bar,
+                      }}
+                    />
                     <p
                       style={{
                         margin: 0,
                         fontSize: 11,
-                        color: "#94a3b8",
+                        color: C.muted,
                         textTransform: "uppercase",
-                        letterSpacing: ".07em",
+                        letterSpacing: ".1em",
                         fontWeight: 700,
                       }}
                     >
                       {s.label}
                     </p>
-                    <p
-                      style={{
-                        margin: "5px 0 0",
-                        fontSize: 24,
-                        fontWeight: 800,
-                        color: s.color,
-                      }}
-                    >
+                    <p style={{ margin: "5px 0 0", fontSize: 26, fontWeight: 800, color: s.color }}>
                       {s.value}
                     </p>
                   </div>
@@ -765,14 +774,7 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
               </div>
 
               {/* GPA Trend */}
-              <div
-                className="rc-card fu fu2"
-                style={{
-                  padding: 20,
-                  marginBottom: 20,
-                  borderLeft: "4px solid #3b82f6",
-                }}
-              >
+              <div className="rc-card fu fu2" style={{ padding: 22, marginBottom: 22 }}>
                 <GpaTrend results={rollResults} />
               </div>
 
@@ -782,129 +784,123 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
                   const allGpas = nonNullGpas(r);
                   const { referredCount, failedCount } = splitBreakdown(r);
                   const hasIssues = referredCount > 0 || failedCount > 0;
+                  const dot = STATUS[r.status]?.dot ?? C.muted;
 
                   return (
                     <div
                       key={r.id}
-                      className="rc-card fu"
-                      style={{
-                        padding: 22,
-                        animationDelay: `${i * 0.04}s`,
-                        borderLeft: `4px solid ${STATUS[r.status]?.dot ?? "#94a3b8"}`,
-                      }}
+                      className="rc-card rc-sem fu"
+                      style={{ animationDelay: `${i * 0.04}s` }}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 16,
-                          alignItems: "flex-start",
-                          marginBottom: hasIssues || allGpas.length > 1 ? 16 : 0,
-                        }}
-                      >
-                        <div style={{ flex: 1, minWidth: 180 }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 10,
-                              marginBottom: 10,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <span
-                              style={{
-                                background: "#eff6ff",
-                                color: "#1e40af",
-                                border: "1px solid #bfdbfe",
-                                borderRadius: 11,
-                                padding: "5px 14px",
-                                fontSize: 13.5,
-                                fontWeight: 800,
-                              }}
-                            >
-                              Semester {r.semester?.name ?? r.semesterName}
-                            </span>
-                            <StatusBadge status={r.status} />
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 13.5,
-                              color: "#64748b",
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: "4px 16px",
-                            }}
-                          >
-                            <span>
-                              Exam Year:{" "}
-                              <strong style={{ color: "#334155" }}>{r.examYear}</strong>
-                            </span>
-                            <span>
-                              Regulation:{" "}
-                              <strong style={{ color: "#334155" }}>{r.regulation}</strong>
-                            </span>
-                            <span>
-                              Group:{" "}
-                              <strong style={{ color: "#334155" }}>{r.group?.name}</strong> (
-                              {r.group?.session})
-                            </span>
-                          </div>
-                        </div>
-
-                        <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
-                          {allGpas.map((g) => (
-                            <GpaChip key={g.label} value={g.value} label={g.label} />
-                          ))}
-                        </div>
-                      </div>
-
-                      {hasIssues && (
-                        <div
+                      <div style={{ display: "flex", alignItems: "stretch" }}>
+                        <span
                           style={{
-                            marginBottom: allGpas.length > 1 ? 14 : 0,
-                            paddingBottom: allGpas.length > 1 ? 14 : 0,
-                            borderBottom: allGpas.length > 1 ? "1px solid #f1f5f9" : "none",
+                            width: 6,
+                            flexShrink: 0,
+                            background: dot,
                           }}
-                        >
-                          <SubjectBreakdownBlock r={r} />
-                        </div>
-                      )}
-
-                      {allGpas.length > 1 && (
-                        <div>
-                          <p
+                        />
+                        <div style={{ padding: 22, flex: 1, minWidth: 0 }}>
+                          <div
                             style={{
-                              margin: "0 0 10px",
-                              fontSize: 11,
-                              color: "#94a3b8",
-                              textTransform: "uppercase",
-                              letterSpacing: ".07em",
-                              fontWeight: 700,
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 16,
+                              alignItems: "flex-start",
+                              marginBottom: hasIssues || allGpas.length > 1 ? 16 : 0,
                             }}
                           >
-                            All GPA Records
-                          </p>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            {allGpas.map((g) => (
-                              <span
-                                key={g.label}
+                            <div style={{ flex: 1, minWidth: 180 }}>
+                              <div
                                 style={{
-                                  background: "#f8fafc",
-                                  border: "1px solid #e2e8f0",
-                                  borderRadius: 11,
-                                  padding: "6px 14px",
-                                  fontSize: 13,
-                                  fontWeight: 700,
-                                  color: "#0f172a",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 10,
+                                  marginBottom: 10,
+                                  flexWrap: "wrap",
                                 }}
                               >
-                                {g.label}: {g.value.toFixed(2)}
-                              </span>
-                            ))}
+                                <span
+                                  style={{
+                                    background: C.sand,
+                                    color: C.emerald,
+                                    border: `1px solid ${C.line}`,
+                                    borderRadius: 10,
+                                    padding: "5px 14px",
+                                    fontSize: 13.5,
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  Semester {r.semester?.name ?? r.semesterName}
+                                </span>
+                                <StatusBadge status={r.status} />
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: 13.5,
+                                  color: "#64748b",
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: "4px 16px",
+                                }}
+                              >
+                                <span>
+                                  Exam Year: <strong style={{ color: "#334155" }}>{r.examYear}</strong>
+                                </span>
+                                <span>
+                                  Regulation: <strong style={{ color: "#334155" }}>{r.regulation}</strong>
+                                </span>
+                                <span>
+                                  Group: <strong style={{ color: "#334155" }}>{r.group?.name}</strong> (
+                                  {r.group?.session})
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", gap: 12, flexShrink: 0, flexWrap: "wrap" }}>
+                              {allGpas.map((g) => (
+                                <GpaChip key={g.label} value={g.value} label={g.label} />
+                              ))}
+                            </div>
                           </div>
+
+                          {hasIssues && (
+                            <div
+                              style={{
+                                marginBottom: allGpas.length > 1 ? 14 : 0,
+                                paddingBottom: allGpas.length > 1 ? 14 : 0,
+                                borderBottom: allGpas.length > 1 ? `1px solid ${C.lineSoft}` : "none",
+                              }}
+                            >
+                              <SubjectBreakdownBlock r={r} />
+                            </div>
+                          )}
+
+                          {allGpas.length > 1 && (
+                            <div>
+                              <Eyebrow>All GPA Records</Eyebrow>
+                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                {allGpas.map((g) => (
+                                  <span
+                                    key={g.label}
+                                    style={{
+                                      background: C.sand,
+                                      border: `1px solid ${C.line}`,
+                                      borderRadius: 10,
+                                      padding: "6px 14px",
+                                      fontSize: 13,
+                                      fontWeight: 700,
+                                      color: C.ink,
+                                    }}
+                                  >
+                                    {g.label}: {g.value.toFixed(2)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}

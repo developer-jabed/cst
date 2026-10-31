@@ -74,7 +74,8 @@ type SortKey = "ROLL" | "NAME" | "ATTENDANCE_ASC" | "ATTENDANCE_DESC";
 const LOW_ATTENDANCE = 60;
 const GOOD_ATTENDANCE = 80;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+/* ───────────────────────── Helpers ───────────────────────── */
+
 function initials(name: string) {
   return name
     .split(" ")
@@ -87,7 +88,8 @@ function initials(name: string) {
 function attendanceTone(p: number) {
   if (p >= GOOD_ATTENDANCE)
     return { text: "text-emerald-600", bar: "bg-emerald-500" };
-  if (p >= LOW_ATTENDANCE) return { text: "text-amber-600", bar: "bg-amber-500" };
+  if (p >= LOW_ATTENDANCE)
+    return { text: "text-amber-600", bar: "bg-amber-500" };
   return { text: "text-rose-600", bar: "bg-rose-500" };
 }
 
@@ -115,12 +117,12 @@ function Avatar({ name, src }: { name: string; src?: string | null }) {
       <img
         src={src}
         alt={name}
-        className="h-10 w-10 rounded-full object-cover ring-2 ring-white"
+        className="h-10 w-10 rounded-full object-cover ring-2 ring-card"
       />
     );
   }
   return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-blue-500 text-xs font-semibold text-white ring-2 ring-white">
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-emerald-600 text-xs font-semibold text-primary-foreground ring-2 ring-card">
       {initials(name)}
     </div>
   );
@@ -128,7 +130,7 @@ function Avatar({ name, src }: { name: string; src?: string | null }) {
 
 function ProgressBar({ value, barClass }: { value: number; barClass: string }) {
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
       <div
         className={`h-full rounded-full transition-all ${barClass}`}
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
@@ -141,23 +143,27 @@ function StatCard({
   label,
   value,
   hint,
-  tone,
+  accent,
 }: {
   label: string;
   value: string | number;
   hint?: string;
-  tone: string;
+  accent: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <span className={`h-2 w-2 rounded-full ${tone}`} />
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+    <div className="st-row theme-card relative overflow-hidden shadow-[var(--shadow-card)]">
+      <div className={`h-1.5 w-full bg-gradient-to-r ${accent}`} />
+      <div className="p-4">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
+        <p className="mt-1 text-2xl font-black tabular-nums text-foreground">
+          {value}
+        </p>
+        {hint && (
+          <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+        )}
       </div>
-      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
     </div>
   );
 }
@@ -184,8 +190,8 @@ function SelectField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-600">
+      <span className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
           {step}
         </span>
         {label}
@@ -196,7 +202,7 @@ function SelectField({
         onChange={(e) =>
           onChange(e.target.value === "" ? null : Number(e.target.value))
         }
-        className="w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+        className="w-full rounded-xl border border-border bg-secondary/40 px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <option value="">{placeholder}</option>
         {options.map((o) => (
@@ -209,7 +215,8 @@ function SelectField({
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+/* ───────────────────────── Component ───────────────────────── */
+
 export default function StudentReportsClient({
   initialReports,
   errorMessage,
@@ -222,7 +229,6 @@ export default function StudentReportsClient({
   const [sortKey, setSortKey] = useState<SortKey>("ROLL");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  // ── Cascading options: Semester → Group → Subject ──
   const semesters = useMemo(() => {
     const map = new Map<number, SemesterInfo>();
     initialReports.forEach((r) =>
@@ -231,8 +237,8 @@ export default function StudentReportsClient({
     return Array.from(map.values());
   }, [initialReports]);
 
-  // A single option is selected automatically
-  const semId = semesterId ?? (semesters.length === 1 ? semesters[0].id : null);
+  const semId =
+    semesterId ?? (semesters.length === 1 ? semesters[0].id : null);
 
   const groups = useMemo(() => {
     const map = new Map<number, GroupInfo>();
@@ -259,7 +265,8 @@ export default function StudentReportsClient({
     (subjects.length === 1 ? subjects[0].subjectGroup.id : null);
 
   const selectedReport = useMemo(
-    () => initialReports.find((r) => r.subjectGroup.id === selectedId) || null,
+    () =>
+      initialReports.find((r) => r.subjectGroup.id === selectedId) || null,
     [initialReports, selectedId]
   );
 
@@ -408,7 +415,11 @@ export default function StudentReportsClient({
         .replace(/"/g, "&quot;");
 
     const color = (p: number) =>
-      p >= GOOD_ATTENDANCE ? "#059669" : p >= LOW_ATTENDANCE ? "#d97706" : "#e11d48";
+      p >= GOOD_ATTENDANCE
+        ? "#059669"
+        : p >= LOW_ATTENDANCE
+          ? "#d97706"
+          : "#e11d48";
 
     const rows = filteredStudents
       .map((s, i) => {
@@ -460,8 +471,8 @@ export default function StudentReportsClient({
       statusFilter === "LOW_ATTENDANCE"
         ? "Filter: Low attendance"
         : statusFilter === "PENDING"
-        ? "Filter: Pending practical"
-        : "";
+          ? "Filter: Pending practical"
+          : "";
 
     const generated = new Date().toLocaleString("en-GB", {
       day: "2-digit",
@@ -478,7 +489,7 @@ export default function StudentReportsClient({
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { margin: 0; font-family: "Segoe UI", "Noto Sans Bengali", "Noto Sans", Arial, sans-serif; color: #0f172a; font-size: 11px; }
   .hero { position: relative; overflow: hidden; border-radius: 14px; padding: 18px 22px; color: #fff;
-          background: linear-gradient(120deg, #4338ca 0%, #4f46e5 45%, #2563eb 100%); }
+          background: linear-gradient(120deg, #0d9488 0%, #059669 45%, #10b981 100%); }
   .hero::before { content: ""; position: absolute; right: -40px; top: -60px; width: 190px; height: 190px; border-radius: 50%; background: rgba(255,255,255,.12); }
   .hero::after { content: ""; position: absolute; right: 70px; bottom: -70px; width: 140px; height: 140px; border-radius: 50%; background: rgba(255,255,255,.08); }
   .hero .eyebrow { font-size: 9px; letter-spacing: .18em; text-transform: uppercase; opacity: .8; }
@@ -494,14 +505,14 @@ export default function StudentReportsClient({
   .note { font-size: 10px; color: #64748b; margin: 0 0 6px; display: flex; justify-content: space-between; }
   table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
   thead { display: table-header-group; }
-  th { background: #eef2ff; color: #3730a3; text-align: left; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px; }
+  th { background: #ecfdf5; color: #047857; text-align: left; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px; }
   td { padding: 7px 10px; border-top: 1px solid #f1f5f9; vertical-align: middle; }
   tr { page-break-inside: avoid; break-inside: avoid; }
   tr.alt td { background: #f8fafc; }
   .roll { font-weight: 700; color: #1e293b; width: 38px; }
   .st { display: flex; align-items: center; gap: 8px; }
   .av { width: 26px; height: 26px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center;
-        background: linear-gradient(135deg, #6366f1, #3b82f6); color: #fff; font-size: 9px; font-weight: 700; }
+        background: linear-gradient(135deg, #059669, #10b981); color: #fff; font-size: 9px; font-weight: 700; }
   .nm { font-weight: 600; color: #0f172a; }
   .rg { font-size: 9px; color: #94a3b8; }
   .tag { background: #fef3c7; color: #b45309; border-radius: 4px; padding: 0 4px; font-weight: 600; }
@@ -530,7 +541,7 @@ export default function StudentReportsClient({
   </div>
 
   <div class="cards">
-    <div class="card" style="--c:#4f46e5"><div class="l">Students</div><div class="v">${summary.total}</div><div class="h">Enrolled in this group</div></div>
+    <div class="card" style="--c:#059669"><div class="l">Students</div><div class="v">${summary.total}</div><div class="h">Enrolled in this group</div></div>
     <div class="card" style="--c:${color(summary.avg)}"><div class="l">Avg. Attendance</div><div class="v">${summary.avg}%</div><div class="h">Across all students</div></div>
     <div class="card" style="--c:#e11d48"><div class="l">Low Attendance</div><div class="v">${summary.low}</div><div class="h">Below ${LOW_ATTENDANCE}%</div></div>
     <div class="card" style="--c:#d97706"><div class="l">Pending Practicals</div><div class="v">${summary.pendingStudents}</div><div class="h">Students with unsubmitted work</div></div>
@@ -582,19 +593,17 @@ export default function StudentReportsClient({
     win.document.close();
     win.onafterprint = cleanup;
 
-    // Brief tick so the iframe lays out before the print dialog opens
     setTimeout(() => {
       win.focus();
       win.print();
-      setTimeout(cleanup, 60000); // fallback if afterprint never fires
+      setTimeout(cleanup, 60000);
     }, 100);
   };
 
-  // ── Error / empty states ──
   if (errorMessage) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-10 text-center">
-        <p className="text-base font-semibold text-rose-700">
+      <div className="theme-card border border-rose-200 bg-rose-50 px-6 py-10 text-center">
+        <p className="text-base font-bold text-rose-700">
           Could not load reports
         </p>
         <p className="mt-1 text-sm text-rose-600">{errorMessage}</p>
@@ -604,11 +613,11 @@ export default function StudentReportsClient({
 
   if (initialReports.length === 0) {
     return (
-      <div className="rounded-2xl border bg-white py-20 text-center shadow-sm">
-        <p className="text-lg font-medium text-gray-400">
+      <div className="theme-card py-20 text-center">
+        <p className="text-lg font-bold text-foreground">
           No subject groups found
         </p>
-        <p className="mt-1 text-sm text-gray-400">
+        <p className="mt-1 text-sm text-muted-foreground">
           You have no assigned subjects yet.
         </p>
       </div>
@@ -617,9 +626,10 @@ export default function StudentReportsClient({
 
   return (
     <div className="space-y-6">
-      {/* ========== Selection: Semester → Group → Subject ========== */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-3">
+      {/* Selection: Semester → Group → Subject */}
+      <section className="st-row theme-card relative overflow-hidden shadow-[var(--shadow-card)]">
+        <div className="h-1.5 w-full bg-gradient-to-r from-primary to-emerald-500" />
+        <div className="grid gap-4 p-5 md:grid-cols-3">
           <SelectField
             step={1}
             label="Semester"
@@ -655,7 +665,6 @@ export default function StudentReportsClient({
         </div>
       </section>
 
-      {/* ========== Selected report ========== */}
       {selectedReport && summary && (
         <section className="space-y-4">
           {/* Summary cards */}
@@ -664,95 +673,97 @@ export default function StudentReportsClient({
               label="Students"
               value={summary.total}
               hint="Enrolled in this group"
-              tone="bg-indigo-500"
+              accent="from-primary to-emerald-500"
             />
             <StatCard
               label="Avg. Attendance"
               value={`${summary.avg}%`}
               hint="Across all students"
-              tone={attendanceTone(summary.avg).bar}
+              accent="from-emerald-500 to-teal-400"
             />
             <StatCard
               label="Low Attendance"
               value={summary.low}
               hint={`Below ${LOW_ATTENDANCE}%`}
-              tone="bg-rose-500"
+              accent="from-rose-500 to-pink-400"
             />
             <StatCard
               label="Pending Practicals"
               value={summary.pendingStudents}
               hint="Students with unsubmitted work"
-              tone="bg-amber-500"
+              accent="from-amber-500 to-yellow-400"
             />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+          <div className="st-row theme-card relative overflow-hidden shadow-[var(--shadow-card)]">
+            <div className="h-1.5 w-full bg-gradient-to-r from-primary to-emerald-500" />
+
             {/* Header */}
-            <div className="border-b bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-4 text-white">
+            <div className="border-b border-border bg-gradient-to-r from-primary to-emerald-600 px-5 py-4 text-primary-foreground">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold">
+                  <h2 className="text-lg font-bold">
                     {selectedReport.subjectGroup.subject.name}
                   </h2>
-                  <p className="text-sm text-indigo-100">
+                  <p className="text-sm text-primary-foreground/80">
                     Group {selectedReport.subjectGroup.group.name} (
                     {selectedReport.subjectGroup.group.session}) ·{" "}
                     {selectedReport.subjectGroup.semester.name}
                   </p>
                 </div>
                 <div className="mt-2 flex w-fit items-center gap-2 sm:mt-0">
-                <button
-                  onClick={exportPdf}
-                  disabled={filteredStudents.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50 disabled:opacity-50"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
+                  <button
+                    onClick={exportPdf}
+                    disabled={filteredStudents.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition hover:bg-white/90 disabled:opacity-50"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M7 21h10a2 2 0 002-2V9l-5-5H7a2 2 0 00-2 2v13a2 2 0 002 2zM14 4v5h5"
-                    />
-                  </svg>
-                  Export PDF
-                </button>
-                <button
-                  onClick={exportCsv}
-                  disabled={filteredStudents.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/25 disabled:opacity-50"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M7 21h10a2 2 0 002-2V9l-5-5H7a2 2 0 00-2 2v13a2 2 0 002 2zM14 4v5h5"
+                      />
+                    </svg>
+                    Export PDF
+                  </button>
+                  <button
+                    onClick={exportCsv}
+                    disabled={filteredStudents.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/25 disabled:opacity-50"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"
-                    />
-                  </svg>
-                  Export CSV
-                </button>
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"
+                      />
+                    </svg>
+                    Export CSV
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* Toolbar */}
-            <div className="flex flex-col gap-3 border-b px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 border-b border-border px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
               <input
                 type="text"
                 placeholder="Search by name, roll or registration..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border bg-white px-4 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 lg:w-80"
+                className="w-full rounded-xl border border-border bg-secondary/40 px-4 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 lg:w-80"
               />
 
               <div className="flex flex-wrap items-center gap-2">
@@ -766,10 +777,10 @@ export default function StudentReportsClient({
                   <button
                     key={key}
                     onClick={() => setStatusFilter(key)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                       statusFilter === key
-                        ? "bg-indigo-600 text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        ? "bg-gradient-to-br from-primary to-emerald-600 text-primary-foreground shadow-md shadow-primary/25"
+                        : "bg-secondary text-muted-foreground hover:bg-secondary/80"
                     }`}
                   >
                     {label}
@@ -779,7 +790,7 @@ export default function StudentReportsClient({
                 <select
                   value={sortKey}
                   onChange={(e) => setSortKey(e.target.value as SortKey)}
-                  className="rounded-lg border bg-white px-2.5 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="rounded-lg border border-border bg-secondary/40 px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 >
                   <option value="ROLL">Sort: Roll</option>
                   <option value="NAME">Sort: Name</option>
@@ -793,13 +804,13 @@ export default function StudentReportsClient({
             <div className="overflow-x-auto">
               <table className="w-full min-w-[900px] text-left text-sm">
                 <thead>
-                  <tr className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <th className="px-4 py-3 font-semibold">Roll</th>
-                    <th className="px-4 py-3 font-semibold">Student</th>
-                    <th className="w-48 px-4 py-3 font-semibold">Attendance</th>
-                    <th className="px-4 py-3 font-semibold">P / A / L</th>
-                    <th className="w-44 px-4 py-3 font-semibold">Practical</th>
-                    <th className="px-4 py-3 font-semibold">Status</th>
+                  <tr className="border-b border-border bg-secondary/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <th className="px-4 py-3">Roll</th>
+                    <th className="px-4 py-3">Student</th>
+                    <th className="w-48 px-4 py-3">Attendance</th>
+                    <th className="px-4 py-3">P / A / L</th>
+                    <th className="w-44 px-4 py-3">Practical</th>
+                    <th className="px-4 py-3">Status</th>
                     <th className="w-10 px-2 py-3" />
                   </tr>
                 </thead>
@@ -808,7 +819,7 @@ export default function StudentReportsClient({
                     <tr>
                       <td
                         colSpan={7}
-                        className="px-4 py-12 text-center text-slate-400"
+                        className="px-4 py-12 text-center text-muted-foreground"
                       >
                         No students found
                       </td>
@@ -831,9 +842,9 @@ export default function StudentReportsClient({
                         <Fragment key={item.student.id}>
                           <tr
                             onClick={() => toggleRow(item.student.id)}
-                            className="cursor-pointer border-b transition hover:bg-slate-50/70"
+                            className="cursor-pointer border-b border-border transition hover:bg-secondary/30"
                           >
-                            <td className="px-4 py-3 font-semibold text-slate-800">
+                            <td className="px-4 py-3 font-semibold text-foreground">
                               {item.student.roll}
                             </td>
 
@@ -844,14 +855,16 @@ export default function StudentReportsClient({
                                   src={item.student.profilePhoto}
                                 />
                                 <div className="min-w-0">
-                                  <div className="truncate font-medium text-slate-800">
+                                  <div className="truncate font-medium text-foreground">
                                     {item.student.name}
                                   </div>
-                                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                                    <span>Reg: {item.student.registration}</span>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <span>
+                                      Reg: {item.student.registration}
+                                    </span>
                                     {item.student.attemptNumber &&
                                       item.student.attemptNumber > 1 && (
-                                        <span className="rounded bg-amber-50 px-1.5 py-0.5 font-medium text-amber-700">
+                                        <span className="rounded bg-amber-50 px-1.5 py-0.5 font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
                                           Attempt {item.student.attemptNumber}
                                         </span>
                                       )}
@@ -865,7 +878,7 @@ export default function StudentReportsClient({
                                 <span className={`font-semibold ${tone.text}`}>
                                   {item.attendance.percentage}%
                                 </span>
-                                <span className="text-slate-400">
+                                <span className="text-muted-foreground">
                                   {item.attendance.present}/
                                   {item.attendance.total}
                                 </span>
@@ -878,7 +891,7 @@ export default function StudentReportsClient({
                               </div>
                             </td>
 
-                            <td className="px-4 py-3 text-xs text-slate-600">
+                            <td className="px-4 py-3 text-xs text-muted-foreground">
                               <span className="font-medium text-emerald-600">
                                 {item.attendance.present}
                               </span>
@@ -894,35 +907,35 @@ export default function StudentReportsClient({
 
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-between text-xs">
-                                <span className="font-semibold text-slate-700">
+                                <span className="font-semibold text-foreground">
                                   {item.practical.submitted}/
                                   {item.practical.total}
                                 </span>
-                                <span className="text-slate-400">
+                                <span className="text-muted-foreground">
                                   {practicalPct}%
                                 </span>
                               </div>
                               <div className="mt-1">
                                 <ProgressBar
                                   value={practicalPct}
-                                  barClass="bg-indigo-500"
+                                  barClass="bg-primary"
                                 />
                               </div>
                             </td>
 
                             <td className="px-4 py-3">
                               {item.practical.pending > 0 ? (
-                                <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                                <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 ring-1 ring-inset ring-rose-200">
                                   {item.practical.pending} Pending
                                 </span>
                               ) : (
-                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
                                   Complete
                                 </span>
                               )}
                             </td>
 
-                            <td className="px-2 py-3 text-slate-400">
+                            <td className="px-2 py-3 text-muted-foreground">
                               <svg
                                 className={`h-4 w-4 transition-transform ${
                                   isOpen ? "rotate-180" : ""
@@ -942,40 +955,44 @@ export default function StudentReportsClient({
                           </tr>
 
                           {isOpen && (
-                            <tr className="border-b bg-slate-50/60">
+                            <tr className="border-b border-border bg-secondary/30">
                               <td colSpan={7} className="px-4 py-4">
                                 <div className="grid gap-4 lg:grid-cols-3">
-                                  {/* Contact */}
-                                  <div className="rounded-xl border bg-white p-4">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                  <div className="rounded-xl border border-border bg-card p-4">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                       Contact
                                     </p>
-                                    <dl className="mt-2 space-y-1 text-sm text-slate-600">
+                                    <dl className="mt-2 space-y-1 text-sm text-foreground">
                                       <div className="flex justify-between gap-2">
-                                        <dt className="text-slate-400">Email</dt>
+                                        <dt className="text-muted-foreground">
+                                          Email
+                                        </dt>
                                         <dd className="truncate">
                                           {item.student.email || "—"}
                                         </dd>
                                       </div>
                                       <div className="flex justify-between gap-2">
-                                        <dt className="text-slate-400">Mobile</dt>
-                                        <dd>{item.student.mobile || "—"}</dd>
+                                        <dt className="text-muted-foreground">
+                                          Mobile
+                                        </dt>
+                                        <dd>
+                                          {item.student.mobile || "—"}
+                                        </dd>
                                       </div>
                                     </dl>
                                   </div>
 
-                                  {/* Practical list */}
-                                  <div className="rounded-xl border bg-white p-4 lg:col-span-2">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                  <div className="rounded-xl border border-border bg-card p-4 lg:col-span-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                       Practical / Job details
                                     </p>
 
                                     {list.length === 0 ? (
-                                      <p className="mt-2 text-sm text-slate-400">
+                                      <p className="mt-2 text-sm text-muted-foreground">
                                         No practicals assigned yet.
                                       </p>
                                     ) : (
-                                      <ul className="mt-2 divide-y">
+                                      <ul className="mt-2 divide-y divide-border">
                                         {list.map((p) => {
                                           const overdue = isOverdue(p);
                                           return (
@@ -984,12 +1001,13 @@ export default function StudentReportsClient({
                                               className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between"
                                             >
                                               <div className="min-w-0">
-                                                <p className="truncate text-sm font-medium text-slate-800">
+                                                <p className="truncate text-sm font-medium text-foreground">
                                                   {p.title}
                                                 </p>
-                                                <p className="text-xs text-slate-400">
-                                                  Given {formatDate(p.givenDate)}{" "}
-                                                  · Due{" "}
+                                                <p className="text-xs text-muted-foreground">
+                                                  Given{" "}
+                                                  {formatDate(p.givenDate)} ·
+                                                  Due{" "}
                                                   {formatDate(
                                                     p.submissionDeadline
                                                   )}
@@ -997,20 +1015,20 @@ export default function StudentReportsClient({
                                               </div>
 
                                               <div className="flex items-center gap-3 text-xs">
-                                                <span className="text-slate-600">
+                                                <span className="text-muted-foreground">
                                                   {p.obtainedMarks ?? "—"} /{" "}
                                                   {p.totalMarks}
                                                 </span>
                                                 {p.submitted ? (
-                                                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                                                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
                                                     Submitted
                                                   </span>
                                                 ) : overdue ? (
-                                                  <span className="rounded-full bg-rose-50 px-2 py-0.5 font-medium text-rose-700">
+                                                  <span className="rounded-full bg-rose-50 px-2 py-0.5 font-medium text-rose-700 ring-1 ring-inset ring-rose-200">
                                                     Overdue
                                                   </span>
                                                 ) : (
-                                                  <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+                                                  <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800 ring-1 ring-inset ring-amber-200">
                                                     Pending
                                                   </span>
                                                 )}
@@ -1034,7 +1052,7 @@ export default function StudentReportsClient({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between border-t bg-slate-50 px-5 py-2.5 text-xs text-slate-500">
+            <div className="flex items-center justify-between border-t border-border bg-secondary/30 px-5 py-2.5 text-xs text-muted-foreground">
               <span>
                 Showing {filteredStudents.length} of{" "}
                 {selectedReport.totalStudents} students
@@ -1047,10 +1065,9 @@ export default function StudentReportsClient({
         </section>
       )}
 
-      {/* Nothing selected */}
       {!selectedReport && (
-        <div className="rounded-2xl border border-dashed bg-white py-16 text-center">
-          <p className="text-slate-500">
+        <div className="theme-card border-dashed py-16 text-center">
+          <p className="text-muted-foreground">
             Select a semester, group and subject above to view student reports
           </p>
         </div>

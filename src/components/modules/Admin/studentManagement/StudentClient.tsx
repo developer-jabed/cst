@@ -1,18 +1,32 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/modules/Admin/studentManagement/StudentClient.tsx
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+    memo,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    useTransition,
+    type FormEvent,
+    type ReactNode,
+} from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createStudent } from "@/service/student/student.service";
 import StudentTable from "./studentTable";
 
-// ────────────────────────────────────────────── TYPES
+
+/* ────────────────────────────── Types ────────────────────────────── */
+
 interface SelectOption {
     id: number;
     name: string;
+    departmentId?: number | null;
+    shiftId?: number | null;
+    currentSemesterId?: number | null;
 }
 
 interface Student {
@@ -45,85 +59,141 @@ interface Props {
     meta: Meta;
 }
 
-// ─── REUSABLE COMPONENTS ─────────────────────
-function Field({ label, name, type = "text", placeholder, required, error, defaultValue }: any) {
-    return (
-        <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                {label} {required && <span className="text-rose-500">*</span>}
-            </label>
-            <input
-                name={name}
-                type={type}
-                placeholder={placeholder}
-                defaultValue={defaultValue}
-                className={`rounded-xl border px-4 py-3 text-sm bg-white text-slate-800 placeholder-slate-400 outline-none transition-all
-                    focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500
-                    ${error ? "border-rose-400" : "border-slate-200 hover:border-slate-300"}`}
-            />
-            {error && <p className="text-xs text-rose-500 mt-1">{error}</p>}
-        </div>
-    );
+type FieldErrors = Record<string, string | undefined>;
+interface ActionState {
+    success?: boolean;
+    message?: string;
+    errors?: FieldErrors;
 }
 
-function SelectField({ label, name, options, required, error, value, onChange, placeholder = "Select...", disabled }: any) {
-    return (
-        <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                {label} {required && <span className="text-rose-500">*</span>}
-            </label>
-            <select
-                name={name}
-                value={value ?? ""}
-                onChange={(e) => onChange?.(e.target.value)}
-                disabled={disabled}
-                className={`rounded-xl border px-4 py-3 text-sm bg-white text-slate-800 outline-none transition-all appearance-none
-                    focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500
-                    ${error ? "border-rose-400" : "border-slate-200 hover:border-slate-300"}
-                    disabled:opacity-50 disabled:bg-slate-50`}
-            >
-                <option value="" disabled>{placeholder}</option>
-                {options.map((o: any) => (
-                    <option key={o.id} value={o.id}>{o.name}</option>
-                ))}
-            </select>
-            {error && <p className="text-xs text-rose-500 mt-1">{error}</p>}
-        </div>
-    );
+/* ───────────────────── Shared style constants ───────────────────── */
+
+const LABEL = "text-[11px] font-bold uppercase tracking-[0.14em] text-primary/70";
+const CONTROL =
+    "w-full rounded-xl border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-all duration-200 " +
+    "hover:border-gold-soft focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60";
+const controlClass = (error?: string) => `${CONTROL} ${error ? "border-rose-400" : "border-border"}`;
+
+const GENDER_OPTIONS: SelectOption[] = [
+    { id: 0, name: "Male" },
+    { id: 1, name: "Female" },
+    { id: 2, name: "Other" },
+];
+
+/* ───────────────────── Reusable form components ───────────────────── */
+
+interface FieldProps {
+    label: string;
+    name: string;
+    type?: string;
+    placeholder?: string;
+    required?: boolean;
+    error?: string;
+    defaultValue?: string;
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+const Field = memo(function Field({ label, name, type = "text", placeholder, required, error, defaultValue }: FieldProps) {
+    return (
+        <div className="flex flex-col gap-1.5">
+            <label className={LABEL}>
+                {label} {required && <span className="text-rose-500">*</span>}
+            </label>
+            <input name={name} type={type} placeholder={placeholder} defaultValue={defaultValue} className={controlClass(error)} />
+            {error && <p className="text-xs text-rose-500">{error}</p>}
+        </div>
+    );
+});
+
+interface SelectFieldProps {
+    label: string;
+    name: string;
+    options: { id: number | string; name: string }[];
+    required?: boolean;
+    error?: string;
+    value?: string;
+    onChange?: (v: string) => void;
+    placeholder?: string;
+    disabled?: boolean;
+    /** use option name as the submitted value (for gender) */
+    valueByName?: boolean;
+}
+
+const SelectField = memo(function SelectField({
+    label, name, options, required, error, value, onChange, placeholder = "Select...", disabled, valueByName,
+}: SelectFieldProps) {
+    return (
+        <div className="flex flex-col gap-1.5">
+            <label className={LABEL}>
+                {label} {required && <span className="text-rose-500">*</span>}
+            </label>
+            <div className="relative">
+                <select
+                    name={name}
+                    value={value ?? ""}
+                    onChange={(e) => onChange?.(e.target.value)}
+                    disabled={disabled}
+                    className={`${controlClass(error)} appearance-none pr-10`}
+                >
+                    <option value="" disabled>{placeholder}</option>
+                    {options.map((o) => (
+                        <option key={o.id} value={valueByName ? o.name : o.id}>{o.name}</option>
+                    ))}
+                </select>
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gold">▾</span>
+            </div>
+            {error && <p className="text-xs text-rose-500">{error}</p>}
+        </div>
+    );
+});
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-3">
-                <span className="h-px flex-1 bg-slate-200" />
-                <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-600">{title}</h3>
-                <span className="h-px flex-1 bg-slate-200" />
+                <span className="h-px flex-1 bg-gradient-to-r from-transparent to-gold-soft" />
+                <h3 className="text-xs font-extrabold uppercase tracking-[0.18em] text-primary">{title}</h3>
+                <span className="h-px flex-1 bg-gradient-to-l from-transparent to-gold-soft" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{children}</div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
         </div>
     );
 }
 
-function Modal({ open, onClose, children }: any) {
+function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
     useEffect(() => {
-        document.body.style.overflow = open ? "hidden" : "";
-        return () => { document.body.style.overflow = ""; };
-    }, [open]);
+        if (!open) return;
+        document.body.style.overflow = "hidden";
+        const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+        window.addEventListener("keydown", onKey);
+        return () => {
+            document.body.style.overflow = "";
+            window.removeEventListener("keydown", onKey);
+        };
+    }, [open, onClose]);
 
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto py-8 px-4">
-            <div className="relative bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-3xl my-8">
-                <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+        <div
+            className="st-backdrop fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/55 px-4 py-8 backdrop-blur-md"
+            onClick={onClose}
+        >
+            <div
+                role="dialog"
+                aria-modal="true"
+                onClick={(e) => e.stopPropagation()}
+                className="st-modal relative my-8 w-full max-w-3xl overflow-hidden rounded-3xl border border-border bg-card shadow-2xl"
+            >
+                <div className="h-1 bg-gradient-to-r from-primary via-emerald-500 to-gold" />
+                <div className="flex items-center justify-between border-b border-border bg-gradient-to-r from-secondary via-card to-secondary px-6 py-5">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-900">Enroll New Student</h2>
-                        <p className="text-sm text-slate-500">Fill all required information</p>
+                        <h2 className="text-xl font-bold text-foreground">Enroll New Student</h2>
+                        <p className="text-sm text-muted-foreground">Fill all required information</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-10 h-10 rounded-2xl text-2xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                        aria-label="Close"
+                        className="h-10 w-10 rounded-2xl text-xl text-muted-foreground transition-all duration-200 hover:rotate-90 hover:bg-rose-50 hover:text-rose-500 active:scale-90"
                     >
                         ✕
                     </button>
@@ -134,93 +204,97 @@ function Modal({ open, onClose, children }: any) {
     );
 }
 
-// ─── CREATE STUDENT FORM ─────────────────────
-function CreateStudentForm({ departments, shifts, semesters, groups, onSuccess }: any) {
-    const [state, setState] = useState<any>(null);
+/* ─────────────────────── Create student form ─────────────────────── */
+
+interface FormProps {
+    departments: SelectOption[];
+    shifts: SelectOption[];
+    semesters: SelectOption[];
+    groups: SelectOption[];
+    onSuccess: () => void;
+}
+
+function CreateStudentForm({ departments, shifts, semesters, groups, onSuccess }: FormProps) {
+    const [state, setState] = useState<ActionState | null>(null);
     const [isPending, startTransition] = useTransition();
-    const [deptId, setDeptId] = useState("");
-    const [shiftId, setShiftId] = useState("");
-    const [semId, setSemId] = useState("");
-    const [groupId, setGroupId] = useState("");
+    const [sel, setSel] = useState({ dept: "", shift: "", sem: "", group: "" });
+    const [gender, setGender] = useState("");
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
 
-    const handleDeptChange = (val: string) => {
-        setDeptId(val);
-        setShiftId("");
-        setSemId("");
-        setGroupId("");
-    };
+    // Cascading selects: changing a level resets everything below it
+    const setDept = (v: string) => setSel({ dept: v, shift: "", sem: "", group: "" });
+    const setShift = (v: string) => setSel((s) => ({ ...s, shift: v, sem: "", group: "" }));
+    const setSem = (v: string) => setSel((s) => ({ ...s, sem: v, group: "" }));
+    const setGroup = (v: string) => setSel((s) => ({ ...s, group: v }));
 
-    const handleShiftChange = (val: string) => {
-        setShiftId(val);
-        setSemId("");
-        setGroupId("");
-    };
+    const filteredShifts = useMemo(
+        () => (sel.dept ? shifts.filter((s) => !s.departmentId || String(s.departmentId) === sel.dept) : shifts),
+        [shifts, sel.dept]
+    );
 
-    const handleSemChange = (val: string) => {
-        setSemId(val);
-        setGroupId("");
-    };
-
-    const filteredShifts = deptId
-        ? shifts.filter((s: any) => !s.departmentId || String(s.departmentId) === deptId)
-        : shifts;
-
-    const filteredGroups = groups.filter((g: any) => {
-        if (deptId && g.departmentId && String(g.departmentId) !== deptId) return false;
-        if (shiftId && g.shiftId && String(g.shiftId) !== shiftId) return false;
-        if (semId && g.currentSemesterId && String(g.currentSemesterId) !== semId) return false;
-        return true;
-    });
+    const filteredGroups = useMemo(
+        () =>
+            groups.filter((g) => {
+                if (sel.dept && g.departmentId && String(g.departmentId) !== sel.dept) return false;
+                if (sel.shift && g.shiftId && String(g.shiftId) !== sel.shift) return false;
+                if (sel.sem && g.currentSemesterId && String(g.currentSemesterId) !== sel.sem) return false;
+                return true;
+            }),
+        [groups, sel]
+    );
 
     const errors = state?.errors ?? {};
 
+    // Revoke object URLs to avoid memory leaks
+    useEffect(() => () => { if (photoPreview) URL.revokeObjectURL(photoPreview); }, [photoPreview]);
+
     useEffect(() => {
-        if (state?.success) {
+        if (!state) return;
+        if (state.success) {
             toast.success("Student enrolled successfully!");
-            setTimeout(() => onSuccess(), 1200);
-        } else if (state?.message) {
-            toast.error(state.message);
+            const t = setTimeout(onSuccess, 1000);
+            return () => clearTimeout(t);
         }
+        if (state.message) toast.error(state.message);
     }, [state, onSuccess]);
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const file = fileRef.current?.files?.[0];
         if (file) formData.append("file", file);
 
         startTransition(async () => {
-            const result = await createStudent(null, formData);
-            setState(result);
+            setState((await createStudent(null, formData)) as ActionState);
         });
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-8">
             {/* Photo Upload */}
-            <div className="flex items-center gap-6">
-                <div
+            <div className="flex items-center gap-6 rounded-2xl border border-border bg-gradient-to-br from-secondary/70 to-card p-4">
+                <button
+                    type="button"
                     onClick={() => fileRef.current?.click()}
-                    className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden cursor-pointer hover:border-indigo-400 bg-slate-50"
+                    className="group flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-gold-soft bg-card transition-all duration-300 hover:scale-105 hover:border-gold hover:shadow-lg hover:shadow-gold/20"
                 >
                     {photoPreview ? (
-                        <Image src={photoPreview} alt="Preview" width={96} height={96} className="object-cover w-full h-full" />
+                        <Image src={photoPreview} alt="Preview" width={96} height={96} unoptimized className="h-full w-full object-cover" />
                     ) : (
-                        <div className="text-center text-slate-400">
-                            <div className="text-3xl mb-1">📷</div>
-                            <div className="text-xs">Photo</div>
+                        <div className="text-center text-muted-foreground transition-colors group-hover:text-primary">
+                            <div className="mb-1 text-3xl">📷</div>
+                            <div className="text-xs font-medium">Photo</div>
                         </div>
                     )}
-                </div>
+                </button>
                 <div>
-                    <p className="font-semibold text-slate-700">Profile Photo</p>
-                    <p className="text-xs text-slate-500 mt-1">JPEG, PNG or WebP • Max 2MB</p>
+                    <p className="font-semibold text-foreground">Profile Photo</p>
+                    <p className="mt-1 text-xs text-muted-foreground">JPEG, PNG or WebP • Max 2MB</p>
                     <button
                         type="button"
                         onClick={() => fileRef.current?.click()}
-                        className="mt-3 text-sm px-5 py-2 rounded-xl border border-slate-200 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                        className="mt-3 rounded-xl border border-border bg-card px-5 py-2 text-sm font-medium text-primary transition-all duration-200 hover:border-primary hover:bg-secondary active:scale-95"
                     >
                         {photoPreview ? "Change Photo" : "Choose Photo"}
                     </button>
@@ -237,44 +311,25 @@ function CreateStudentForm({ departments, shifts, semesters, groups, onSuccess }
                 </div>
             </div>
 
-            {/* Academic Placement */}
             <Section title="Academic Placement">
-                <SelectField label="Department" name="departmentId" options={departments} required value={deptId} onChange={handleDeptChange} error={errors.departmentId} />
-                <SelectField label="Shift" name="shiftId" options={filteredShifts} required value={shiftId} onChange={handleShiftChange} error={errors.shiftId} disabled={!deptId} />
-                <SelectField label="Semester" name="semesterId" options={semesters} required value={semId} onChange={handleSemChange} error={errors.semesterId} disabled={!shiftId} />
-                <SelectField label="Group" name="groupId" options={filteredGroups} required value={groupId} onChange={setGroupId} error={errors.groupId} disabled={!semId} />
+                <SelectField label="Department" name="departmentId" options={departments} required value={sel.dept} onChange={setDept} error={errors.departmentId} />
+                <SelectField label="Shift" name="shiftId" options={filteredShifts} required value={sel.shift} onChange={setShift} error={errors.shiftId} disabled={!sel.dept} />
+                <SelectField label="Semester" name="semesterId" options={semesters} required value={sel.sem} onChange={setSem} error={errors.semesterId} disabled={!sel.shift} />
+                <SelectField label="Group" name="groupId" options={filteredGroups} required value={sel.group} onChange={setGroup} error={errors.groupId} disabled={!sel.sem} />
                 <Field label="Roll Number" name="roll" placeholder="e.g. 2201" required error={errors.roll} />
                 <Field label="Registration Number" name="registration" placeholder="Registration number" required error={errors.registration} />
             </Section>
 
-            {/* Personal Information */}
             <Section title="Personal Information">
                 <Field label="Full Name" name="name" required error={errors.name} />
                 <Field label="Email" name="email" type="email" required error={errors.email} />
                 <Field label="Mobile" name="mobile" required error={errors.mobile} />
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                        Gender <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                        name="gender" defaultValue=""
-                        className={`rounded-lg border px-3 py-2.5 text-sm bg-white text-slate-800 outline-none transition-all appearance-none
-              focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500
-              ${errors.gender ? "border-rose-400" : "border-slate-200 hover:border-slate-300"}`}
-                    >
-                        <option value="" disabled>Select gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                    </select>
-                    {errors.gender && <p className="text-xs text-rose-500 mt-0.5">{errors.gender}</p>}
-                </div>
+                <SelectField label="Gender" name="gender" options={GENDER_OPTIONS} valueByName required placeholder="Select gender" value={gender} onChange={setGender} error={errors.gender} />
                 <Field label="Birth Date" name="birthDate" type="date" required error={errors.birthDate} />
                 <Field label="Birth Number" name="birthnumber" required error={errors.birthnumber} />
                 <Field label="NID (Optional)" name="nid" error={errors.nid} />
             </Section>
 
-            {/* Family Information */}
             <Section title="Family Information">
                 <Field label="Father Name" name="fatherName" required error={errors.fatherName} />
                 <Field label="Mother Name" name="motherName" required error={errors.motherName} />
@@ -282,26 +337,24 @@ function CreateStudentForm({ departments, shifts, semesters, groups, onSuccess }
                 <Field label="Mother Mobile" name="motherMobile" required error={errors.motherMobile} />
             </Section>
 
-            {/* Address */}
             <Section title="Address">
                 <Field label="Present Address" name="presentAddress" required error={errors.presentAddress} />
                 <Field label="Permanent Address" name="permanentAddress" required error={errors.permanentAddress} />
             </Section>
 
-            {/* Credentials */}
             <Section title="Login Credentials">
                 <Field label="Password" name="password" type="password" required error={errors.password} />
             </Section>
 
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end pt-2">
                 <button
                     type="submit"
                     disabled={isPending}
-                    className="px-10 py-3.5 rounded-2xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/30 flex items-center gap-2"
+                    className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-primary to-emerald-600 px-10 py-3.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
                     {isPending ? (
                         <>
-                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                             Enrolling...
                         </>
                     ) : (
@@ -313,10 +366,9 @@ function CreateStudentForm({ departments, shifts, semesters, groups, onSuccess }
     );
 }
 
-// ─── MAIN CLIENT COMPONENT ─────────────────────
-export default function StudentManagementClient(props: Props) {
-    const { departments, shifts, semesters, groups, students, meta } = props;
+/* ───────────────────── Main client component ───────────────────── */
 
+export default function StudentManagementClient({ departments, shifts, semesters, groups, students, meta }: Props) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -325,109 +377,119 @@ export default function StudentManagementClient(props: Props) {
     const [searchTerm, setSearchTerm] = useState(searchParams.get("searchTerm") ?? "");
     const [isPending, startTransition] = useTransition();
 
-    const departmentId = searchParams.get("departmentId") ?? "";
-    const shiftId = searchParams.get("shiftId") ?? "";
-    const semesterId = searchParams.get("semesterId") ?? "";
-    const groupId = searchParams.get("groupId") ?? "";
+    const urlSearch = searchParams.get("searchTerm") ?? "";
     const gender = searchParams.get("gender") ?? "";
+    const hasActiveFilters = !!(
+        searchTerm || gender ||
+        ["departmentId", "shiftId", "semesterId", "groupId"].some((k) => searchParams.get(k))
+    );
 
-    const createQueryString = useCallback((updates: Record<string, string | null>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === null || value === "") params.delete(key);
-            else params.set(key, value);
-        });
-        if (!updates.page) params.set("page", "1");
-        return params.toString();
-    }, [searchParams]);
+    const applyFilters = useCallback(
+        (updates: Record<string, string | null>) => {
+            const params = new URLSearchParams(searchParams.toString());
+            Object.entries(updates).forEach(([k, v]) => (v ? params.set(k, v) : params.delete(k)));
+            if (!updates.page) params.set("page", "1");
+            startTransition(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
+        },
+        [router, pathname, searchParams]
+    );
 
-    const applyFilters = useCallback((updates: Record<string, string | null>) => {
-        startTransition(() => {
-            const query = createQueryString(updates);
-            router.replace(`${pathname}?${query}`, { scroll: false });
-        });
-    }, [router, pathname, createQueryString]);
-
-    // Debounced Search
+    // Debounced search
     useEffect(() => {
-        const timer = setTimeout(() => {
-            if (searchTerm !== (searchParams.get("searchTerm") ?? "")) {
-                applyFilters({ searchTerm: searchTerm || null });
-            }
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [searchTerm, searchParams, applyFilters]);
+        if (searchTerm === urlSearch) return;
+        const t = setTimeout(() => applyFilters({ searchTerm: searchTerm || null }), 500);
+        return () => clearTimeout(t);
+    }, [searchTerm, urlSearch, applyFilters]);
 
     const clearAllFilters = () => {
         setSearchTerm("");
-        router.replace(pathname);
+        startTransition(() => router.replace(pathname));
     };
 
-    const hasActiveFilters = !!(searchTerm || departmentId || shiftId || semesterId || groupId || gender);
-
-    const handleSuccess = () => {
+    const closeModal = useCallback(() => setModalOpen(false), []);
+    const handleSuccess = useCallback(() => {
         setModalOpen(false);
-        router.refresh(); // Refresh data after successful enrollment
-    };
+        router.refresh();
+    }, [router]);
+    const handlePageChange = useCallback((page: number) => applyFilters({ page: String(page) }), [applyFilters]);
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-800">
-            <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500" />
+        <div className="theme-content min-h-screen text-foreground">
+            {/* top loading bar while filtering */}
+            <div className="relative h-1 w-full overflow-hidden">
+                <div
+                    className={`h-full w-full bg-gradient-to-r from-primary via-emerald-400 to-gold transition-opacity duration-300 ${
+                        isPending ? "animate-pulse opacity-100" : "opacity-0"
+                    }`}
+                />
+            </div>
 
-            <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+            <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
                 {/* Header */}
-                <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="st-fade flex flex-wrap items-start justify-between gap-4">
                     <div>
-                        <p className="text-xs font-bold tracking-[0.3em] text-indigo-500 uppercase mb-1">Dashboard / Students</p>
-                        <h1 className="text-3xl font-black tracking-tight text-slate-900">Student Management</h1>
-                        <p className="text-sm text-slate-500 mt-1">
-                            {meta.total} student{meta.total !== 1 ? "s" : ""} found
+                        <p className="mb-1 bg-gradient-to-r from-primary to-gold bg-clip-text text-xs font-bold uppercase tracking-[0.3em] text-transparent">
+                            Dashboard / Students
+                        </p>
+                        <h1 className="text-3xl font-black tracking-tight text-foreground">Student Management</h1>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            <span className="font-bold text-primary">{meta.total}</span> student{meta.total !== 1 ? "s" : ""} found
                         </p>
                     </div>
 
                     <button
                         onClick={() => setModalOpen(true)}
-                        className="flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/30"
+                        className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-primary to-emerald-600 px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30 ring-1 ring-gold/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40 active:scale-95"
                     >
-                        + Enroll New Student
+                        <span className="text-lg leading-none">+</span> Enroll New Student
                     </button>
                 </div>
 
                 {/* Filters */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                        <div className="xl:col-span-2">
+                <div className="st-fade theme-card p-6" style={{ animationDelay: "60ms" }}>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                        <div className="relative xl:col-span-2">
+                            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-primary/50">⌕</span>
                             <input
                                 type="text"
                                 placeholder="Search by name, roll, email, mobile..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full rounded-2xl border border-slate-200 px-5 py-3 text-sm focus:border-indigo-500 outline-none"
+                                className={`${controlClass()} rounded-2xl pl-10`}
                             />
                         </div>
 
-
-
-                        <select value={gender} onChange={(e) => applyFilters({ gender: e.target.value })} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm bg-white">
-                            <option value="">All Genders</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                            <option value="Other">Other</option>
-                        </select>
+                        <div className="relative">
+                            <select
+                                value={gender}
+                                onChange={(e) => applyFilters({ gender: e.target.value || null })}
+                                className={`${controlClass()} appearance-none rounded-2xl pr-10`}
+                            >
+                                <option value="">All Genders</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gold">▾</span>
+                        </div>
                     </div>
 
                     {hasActiveFilters && (
-                        <button onClick={clearAllFilters} className="mt-4 text-sm text-rose-500 hover:text-rose-600 font-medium">
-                            Clear All Filters
+                        <button
+                            onClick={clearAllFilters}
+                            className="mt-4 rounded-lg bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-500 transition-all duration-200 hover:bg-rose-100 hover:text-rose-600 active:scale-95"
+                        >
+                            ✕ Clear All Filters
                         </button>
                     )}
                 </div>
 
-                <StudentTable students={students} meta={meta} onPageChange={(page) => applyFilters({ page: String(page) })} />
+                <div className={`transition-opacity duration-300 ${isPending ? "opacity-60" : "opacity-100"}`}>
+                    <StudentTable students={students} meta={meta} onPageChange={handlePageChange} />
+                </div>
             </div>
 
-            {/* Modal */}
-            <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
+            <Modal open={modalOpen} onClose={closeModal}>
                 <CreateStudentForm
                     departments={departments}
                     shifts={shifts}

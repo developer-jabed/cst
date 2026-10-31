@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getNotices } from "@/service/notice/notice.service";
 import { getAllGroups } from "@/service/group/group.service";
 import { getUserInfo } from "@/service/auth/getUserInfo";

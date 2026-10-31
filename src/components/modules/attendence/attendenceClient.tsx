@@ -1,11 +1,24 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, Clock, Save, Loader2 } from "lucide-react";
 import { createAttendanceSessionDirect } from "@/service/attendence/attendence.service";
-import { AttendanceStatus, SessionMeta, STATUS_CONFIG, Student, SubjectGroup } from "@/types/attendence.interface";
-import { SessionHeader, StatusBadge, SummaryBar, Toast, useToast } from "./Ui";
+import {
+  AttendanceStatus,
+  SessionMeta,
+  STATUS_CONFIG,
+  Student,
+  SubjectGroup,
+} from "@/types/attendence.interface";
+import {
+  SessionHeader,
+  StatusBadge,
+  SummaryBar,
+  Toast,
+  useToast,
+} from "./Ui";
 
 type RecordItem = { studentId: number; status: AttendanceStatus };
 
@@ -34,21 +47,31 @@ function StudentRow({
     .toUpperCase();
 
   const avatarCls =
-    status === "PRESENT" ? "bg-emerald-500" : status === "ABSENT" ? "bg-rose-500" : "bg-amber-400";
+    status === "PRESENT"
+      ? "bg-emerald-500"
+      : status === "ABSENT"
+        ? "bg-rose-500"
+        : "bg-amber-400";
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.018, duration: 0.25 }}
-      className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow-md"
+      className="flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-3 shadow-sm transition hover:shadow-md"
     >
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${avatarCls}`}>
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${avatarCls}`}
+      >
         {initials}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-slate-800">{student.name}</p>
-        <p className="text-xs text-slate-400">Roll: {student.roll ?? "—"}</p>
+        <p className="truncate text-sm font-semibold text-foreground">
+          {student.name}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Roll: {student.roll ?? "—"}
+        </p>
       </div>
       <span className="hidden sm:block">
         <StatusBadge status={status} />
@@ -75,7 +98,11 @@ function StudentRow({
   );
 }
 
-export default function AttendanceTakeClient({ students, subjectGroup, meta }: Props) {
+export default function AttendanceTakeClient({
+  students,
+  subjectGroup,
+  meta,
+}: Props) {
   const [isPending, startTransition] = useTransition();
   const [filter, setFilter] = useState<AttendanceStatus | "ALL">("ALL");
   const { toast, show: showToast } = useToast();
@@ -87,7 +114,9 @@ export default function AttendanceTakeClient({ students, subjectGroup, meta }: P
   const [records, setRecords] = useState<RecordItem[]>(initialRecords);
 
   const updateStatus = (studentId: number, status: AttendanceStatus) =>
-    setRecords((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)));
+    setRecords((prev) =>
+      prev.map((r) => (r.studentId === studentId ? { ...r, status } : r))
+    );
 
   const markAll = (status: AttendanceStatus) =>
     setRecords((prev) => prev.map((r) => ({ ...r, status })));
@@ -104,7 +133,9 @@ export default function AttendanceTakeClient({ students, subjectGroup, meta }: P
 
   const filteredStudents = useMemo(() => {
     if (filter === "ALL") return students;
-    return students.filter((s) => records.find((r) => r.studentId === s.id)?.status === filter);
+    return students.filter(
+      (s) => records.find((r) => r.studentId === s.id)?.status === filter
+    );
   }, [filter, students, records]);
 
   const recordsForBar = records.map((r) => ({
@@ -135,28 +166,40 @@ export default function AttendanceTakeClient({ students, subjectGroup, meta }: P
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <SessionHeader meta={meta ?? {}} date={new Date().toISOString()} isLive />
+      <SessionHeader
+        meta={meta ?? ({} as SessionMeta)}
+        date={new Date().toISOString()}
+        isLive
+      />
       <SummaryBar records={recordsForBar} />
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <div className="flex gap-1 rounded-xl bg-secondary/50 p-1 ring-1 ring-border">
           {(["ALL", "PRESENT", "ABSENT", "LATE"] as const).map((f) => {
             const count =
-              f === "ALL" ? summary.total : summary[f.toLowerCase() as "present" | "absent" | "late"];
+              f === "ALL"
+                ? summary.total
+                : summary[f.toLowerCase() as "present" | "absent" | "late"];
             return (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                  filter === f ? "bg-indigo-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  filter === f
+                    ? "bg-gradient-to-br from-primary to-emerald-600 text-primary-foreground shadow-md shadow-primary/25"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 }`}
               >
-                {f === "ALL" ? "All" : f.charAt(0) + f.slice(1).toLowerCase()} ({count})
+                {f === "ALL"
+                  ? "All"
+                  : f.charAt(0) + f.slice(1).toLowerCase()}{" "}
+                ({count})
               </button>
             );
           })}
         </div>
+
         <div className="flex gap-2">
           {(["PRESENT", "ABSENT", "LATE"] as AttendanceStatus[]).map((s) => {
             const cfg = STATUS_CONFIG[s];
@@ -183,7 +226,7 @@ export default function AttendanceTakeClient({ students, subjectGroup, meta }: P
               key="empty"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="rounded-xl border border-dashed border-slate-300 bg-white py-12 text-center text-slate-400"
+              className="theme-card py-12 text-center text-muted-foreground"
             >
               No students in this filter.
             </motion.div>
@@ -193,7 +236,10 @@ export default function AttendanceTakeClient({ students, subjectGroup, meta }: P
                 key={student.id}
                 student={student}
                 index={index}
-                status={records.find((r) => r.studentId === student.id)?.status ?? "PRESENT"}
+                status={
+                  records.find((r) => r.studentId === student.id)?.status ??
+                  "PRESENT"
+                }
                 onUpdate={updateStatus}
               />
             ))
@@ -203,18 +249,31 @@ export default function AttendanceTakeClient({ students, subjectGroup, meta }: P
 
       {/* Sticky footer */}
       <div className="sticky bottom-4 z-10">
-        <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-5 py-4 shadow-xl backdrop-blur-md">
-          <p className="text-sm text-slate-500">
-            <span className="font-semibold text-slate-700">{summary.present}</span> present ·{" "}
-            <span className="font-semibold text-rose-600">{summary.absent}</span> absent ·{" "}
-            <span className="font-semibold text-amber-500">{summary.late}</span> late
+        <div className="theme-card flex items-center justify-between px-5 py-4 shadow-xl backdrop-blur-md">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-bold text-foreground">
+              {summary.present}
+            </span>{" "}
+            present ·{" "}
+            <span className="font-bold text-rose-600">{summary.absent}</span>{" "}
+            absent ·{" "}
+            <span className="font-bold text-amber-600">{summary.late}</span>{" "}
+            late
           </p>
           <button
             onClick={handleSubmit}
             disabled={isPending}
-            className="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 active:scale-95 disabled:opacity-60"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-primary to-emerald-600 px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-md shadow-primary/30 transition hover:shadow-lg hover:shadow-primary/40 active:scale-95 disabled:opacity-60"
           >
-            {isPending ? <><Loader2 size={15} className="animate-spin" /> Saving…</> : <><Save size={15} /> Save Attendance</>}
+            {isPending ? (
+              <>
+                <Loader2 size={15} className="animate-spin" /> Saving…
+              </>
+            ) : (
+              <>
+                <Save size={15} /> Save Attendance
+              </>
+            )}
           </button>
         </div>
       </div>

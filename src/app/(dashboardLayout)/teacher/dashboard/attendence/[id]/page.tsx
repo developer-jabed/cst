@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import AttendancePageTabs from "@/components/modules/attendence/Attendancepagetabs";
 import { getGroupById } from "@/service/group/group.service";
 

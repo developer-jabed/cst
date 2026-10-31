@@ -6,6 +6,7 @@ import { getIconComponent } from "@/lib/icon-mapper";
 import { cn } from "@/lib/utils";
 import { NavSection } from "@/types/dashboard.interface";
 import { UserInfo } from "@/types/userInterface";
+import { Code2, Mail, Phone } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -28,6 +29,72 @@ const ACCENTS: string[] = [
 // Entrance animation (tw-animate-css) with per-item delay applied inline
 const ENTER =
   "animate-in fade-in slide-in-from-left-4 duration-500 fill-mode-both motion-reduce:animate-none";
+
+const DEVELOPER = {
+  name: "Md Jabed Islam",
+  department: "Computer Department",
+  phoneHref: "tel:+8801893292965",
+  phone: "01893292965",
+  email: "jabed1780@gmail.com",
+  facebook: "https://www.facebook.com/jabedislam.mukun.73/",
+};
+
+const FacebookIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden>
+    <path d="M22 12a10 10 0 10-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.3v7A10 10 0 0022 12z" />
+  </svg>
+);
+
+const DevLink = ({
+  href,
+  label,
+  external,
+  children,
+}: {
+  href: string;
+  label: string;
+  external?: boolean;
+  children: React.ReactNode;
+}) => (
+  <a
+    href={href}
+    aria-label={label}
+    title={label}
+    {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-[#e6cf94] ring-1 ring-white/10 transition duration-300 active:scale-95 hover:bg-gradient-to-br hover:from-emerald-400 hover:to-teal-500 hover:text-white"
+  >
+    {children}
+  </a>
+);
+
+const DeveloperCredit = () => (
+  <div className="relative mt-3 flex items-center justify-between gap-3 overflow-hidden rounded-xl border border-[#c9a24b]/25 bg-gradient-to-br from-emerald-400/10 to-[#c9a24b]/10 px-3 py-2.5">
+    <div className="pointer-events-none absolute -right-6 -top-6 h-16 w-16 rounded-full bg-[#c9a24b]/20 blur-2xl" />
+    <div className="relative min-w-0">
+      <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-[#c9a24b]">
+        <Code2 className="h-3 w-3" />
+        Developed by
+      </p>
+      <p className="mt-1 truncate font-serif text-sm font-semibold leading-tight text-white">
+        {DEVELOPER.name}
+      </p>
+      <p className="truncate text-[10px] font-medium text-emerald-200/80">
+        {DEVELOPER.department}
+      </p>
+    </div>
+    <div className="relative flex shrink-0 gap-1.5">
+      <DevLink href={DEVELOPER.phoneHref} label={`Call ${DEVELOPER.phone}`}>
+        <Phone className="h-3.5 w-3.5" />
+      </DevLink>
+      <DevLink href={`mailto:${DEVELOPER.email}`} label={DEVELOPER.email}>
+        <Mail className="h-3.5 w-3.5" />
+      </DevLink>
+      <DevLink href={DEVELOPER.facebook} label="Facebook" external>
+        <FacebookIcon />
+      </DevLink>
+    </div>
+  </div>
+);
 
 const DashboardMobileSidebar = ({
   userInfo,
@@ -178,7 +245,7 @@ const DashboardMobileSidebar = ({
         </nav>
       </ScrollArea>
 
-      {/* ── User Info — fixed at bottom ── */}
+      {/* ── User Info + Developer credit — fixed at bottom ── */}
       <div className="relative shrink-0 border-t border-white/10 p-4">
         <div
           className={cn(
@@ -214,6 +281,8 @@ const DashboardMobileSidebar = ({
             </span>
           </div>
         </div>
+
+        <DeveloperCredit />
       </div>
     </div>
   );

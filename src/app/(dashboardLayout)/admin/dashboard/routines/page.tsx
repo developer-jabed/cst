@@ -21,19 +21,23 @@ export default async function RoutinesPage() {
   const hasError = routinesRes?.success === false || groupsRes?.success === false;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
+    <div className="theme-content min-h-screen">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            ক্লাস রুটিন
-          </h1>
-          <p className="mt-2 text-sm text-slate-600">
-            প্রতিটি গ্রুপের সাপ্তাহিক ক্লাস রুটিন তৈরি ও পরিচালনা করুন
-          </p>
+        <div className="st-fade mb-8 flex items-start gap-3">
+          <div className="mt-1 flex gap-[3px]">
+            <span className="h-9 w-[3px] rounded-full bg-gradient-to-b from-primary to-emerald-500" />
+            <span className="h-9 w-[3px] rounded-full bg-gradient-to-b from-gold to-gold-soft" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black tracking-tight text-foreground">ক্লাস রুটিন</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              প্রতিটি গ্রুপের সাপ্তাহিক ক্লাস রুটিন তৈরি ও পরিচালনা করুন
+            </p>
+          </div>
         </div>
 
         {hasError && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="st-fade mb-6 rounded-xl border border-gold-soft bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             কিছু তথ্য লোড করা যায়নি। পৃষ্ঠাটি রিফ্রেশ করে আবার চেষ্টা করুন।
           </div>
         )}

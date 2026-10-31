@@ -2,8 +2,7 @@
 
 import { INotice, NoticePriority } from "@/types/notice.interface";
 import { useMemo, useState } from "react";
-
-
+import { ChevronDown, Paperclip, Pin, Search } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────
 // Priority Styles
@@ -11,28 +10,26 @@ import { useMemo, useState } from "react";
 
 const PRIORITY_STYLE: Record<
   NoticePriority,
-  {
-    color: string;
-    label: string;
-  }
+  { color: string; soft: string; label: string }
 > = {
   URGENT: {
     color: "#B3261E",
+    soft: "bg-rose-50 text-rose-800 ring-rose-200",
     label: "Urgent",
   },
-
   HIGH: {
-    color: "#B8862E",
+    color: "#c9a24b",
+    soft: "bg-amber-50 text-amber-900 ring-amber-200",
     label: "High",
   },
-
   MEDIUM: {
-    color: "#5B7FA6",
+    color: "#0f766e",
+    soft: "bg-teal-50 text-teal-800 ring-teal-200",
     label: "Medium",
   },
-
   LOW: {
-    color: "#5C6672",
+    color: "#64748b",
+    soft: "bg-slate-100 text-slate-600 ring-slate-200",
     label: "Low",
   },
 };
@@ -42,17 +39,10 @@ const PRIORITY_STYLE: Record<
 // ─────────────────────────────────────────────────────────────
 
 function formatDate(date?: string | null): string {
-  if (!date) {
-    return "";
-  }
-
+  if (!date) return "";
   const parsedDate = new Date(date);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "";
-  }
-
-  return parsedDate.toLocaleDateString("en-US", {
+  if (Number.isNaN(parsedDate.getTime())) return "";
+  return parsedDate.toLocaleDateString("en-GB", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -73,162 +63,110 @@ export default function NoticeBoardClient({
   failed,
 }: NoticeBoardClientProps) {
   const [query, setQuery] = useState("");
-
-  const [expandedId, setExpandedId] = useState<number | null>(
-    null,
-  );
-
-  // ─────────────────────────────────────────────────────────
-  // Filter Notices
-  // ─────────────────────────────────────────────────────────
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const { pinned, rest } = useMemo(() => {
     const q = query.trim().toLowerCase();
 
     const filtered = q
-      ? initialNotices.filter((notice) => {
-          return (
+      ? initialNotices.filter(
+          (notice) =>
             notice.title.toLowerCase().includes(q) ||
             notice.description.toLowerCase().includes(q)
-          );
-        })
+        )
       : initialNotices;
 
     return {
       pinned: filtered.filter((notice) => notice.isPinned),
-
       rest: filtered.filter((notice) => !notice.isPinned),
     };
   }, [initialNotices, query]);
 
-  // ─────────────────────────────────────────────────────────
-  // Toggle Notice
-  // ─────────────────────────────────────────────────────────
-
   const handleToggle = (id: number) => {
-    setExpandedId((currentId) =>
-      currentId === id ? null : id,
-    );
+    setExpandedId((currentId) => (currentId === id ? null : id));
   };
 
-  // ─────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────
-
   return (
-    <div className="min-h-screen bg-[#EAECE6]">
-      <div className="mx-auto max-w-3xl px-6 py-14 sm:px-10">
+    <div className="min-h-screen bg-[#faf8f3]">
+      <div className="mx-auto max-w-3xl px-5 py-12 sm:px-8 md:px-10 md:py-16">
         {/* Header */}
-
         <div className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1
-              className="text-4xl leading-tight text-[#16233F]"
-              style={{
-                fontFamily:
-                  "'Source Serif 4', Georgia, serif",
-              }}
-            >
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#b8923f]">
+              Campus Board
+            </p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
               Notices
             </h1>
-
-            <p className="mt-2 text-[15px] text-[#5C6672]">
+            <p className="mt-2 text-[15px] text-slate-600">
               Announcements from the institute.
             </p>
           </div>
 
-          {/* Search */}
-
           <div className="relative">
-            <svg
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A3ABB3]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={query}
-              onChange={(event) =>
-                setQuery(event.target.value)
-              }
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="Search notices"
               aria-label="Search notices"
-              className="w-full rounded-lg border border-[#D6DAD2] bg-white py-2.5 pl-9 pr-4 text-sm text-[#16233F] shadow-sm placeholder:text-[#A3ABB3] transition focus:border-[#B8862E] focus:outline-none focus:ring-2 focus:ring-[#B8862E]/20 sm:w-64"
+              className="w-full rounded-xl border border-[#e8e0d0] bg-white py-2.5 pl-9 pr-4 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#c9a24b] focus:ring-2 focus:ring-[#c9a24b]/20 sm:w-64"
             />
           </div>
         </div>
 
         {/* Failed */}
-
         {failed && (
-          <div className="rounded-xl border border-[#E4C9C9] bg-[#FBF2F2] p-8 text-sm text-[#8A4B4B]">
-            Notices did not load. Refresh the page to try
-            again.
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-8 text-sm text-rose-800">
+            Notices did not load. Refresh the page to try again.
           </div>
         )}
 
         {/* Empty */}
-
-        {!failed &&
-          pinned.length === 0 &&
-          rest.length === 0 && (
-            <div className="rounded-xl border border-[#D6DAD2] bg-white p-8 text-sm text-[#5C6672]">
+        {!failed && pinned.length === 0 && rest.length === 0 && (
+          <div className="rounded-2xl border border-[#e8e0d0] bg-white px-6 py-14 text-center shadow-sm">
+            <p className="font-semibold text-slate-800">
               {query.trim()
                 ? "No notices match your search."
                 : "There are no notices right now."}
-            </div>
-          )}
+            </p>
+          </div>
+        )}
 
-        {/* Pinned Notices */}
-
+        {/* Pinned */}
         {!failed && pinned.length > 0 && (
           <div className="mb-8 space-y-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-[#B8862E]">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#b8923f]">
+              <Pin className="h-3.5 w-3.5" />
               Pinned
             </p>
-
             {pinned.map((notice) => (
               <NoticeCard
                 key={notice.id}
                 notice={notice}
                 pinned
                 expanded={expandedId === notice.id}
-                onToggle={() =>
-                  handleToggle(notice.id)
-                }
+                onToggle={() => handleToggle(notice.id)}
               />
             ))}
           </div>
         )}
 
-        {/* Main Notices */}
-
+        {/* Main list */}
         {!failed && rest.length > 0 && (
           <div className="space-y-3">
             {pinned.length > 0 && (
-              <p className="text-xs font-medium uppercase tracking-wide text-[#8A93A0]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
                 All notices
               </p>
             )}
-
             {rest.map((notice) => (
               <NoticeCard
                 key={notice.id}
                 notice={notice}
                 expanded={expandedId === notice.id}
-                onToggle={() =>
-                  handleToggle(notice.id)
-                }
+                onToggle={() => handleToggle(notice.id)}
               />
             ))}
           </div>
@@ -255,158 +193,93 @@ function NoticeCard({
   expanded,
   onToggle,
 }: NoticeCardProps) {
-  const style =
-    PRIORITY_STYLE[notice.priority] ??
-    PRIORITY_STYLE.MEDIUM;
-
+  const style = PRIORITY_STYLE[notice.priority] ?? PRIORITY_STYLE.MEDIUM;
   const noticeDate = formatDate(notice.noticeDate);
-
   const expiryDate = formatDate(notice.expiryDate);
-
-  const hasLongDescription =
-    notice.description.length > 120;
+  const hasLongDescription = notice.description.length > 120;
 
   return (
     <div
-      className={`overflow-hidden rounded-2xl border bg-white shadow-[0_4px_24px_rgba(22,35,63,0.06)] transition ${
+      className={`overflow-hidden rounded-2xl border bg-white shadow-[0_4px_20px_rgba(6,78,59,0.05)] transition ${
         pinned
-          ? "border-[#E9D6AE]"
-          : "border-[#DFE3D9]"
+          ? "border-[#c9a24b]/40 ring-1 ring-[#c9a24b]/15"
+          : "border-[#e8e0d0] hover:border-[#c9a24b]/30"
       }`}
     >
-      {/* Main clickable area */}
+      {pinned && (
+        <div className="h-0.5 w-full bg-gradient-to-r from-[#c9a24b] via-[#e8d5a3] to-[#c9a24b]" />
+      )}
 
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="flex w-full items-start gap-4 px-6 py-5 text-left"
+        className="flex w-full items-start gap-4 px-5 py-4 text-left sm:px-6 sm:py-5"
       >
-        {/* Priority indicator */}
-
         <span
           className="mt-1 min-h-[2.5rem] w-1.5 shrink-0 rounded-full"
-          style={{
-            backgroundColor: style.color,
-          }}
+          style={{ backgroundColor: style.color }}
           aria-hidden="true"
         />
 
         <div className="min-w-0 flex-1">
-          {/* Title + Priority */}
-
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-[15px] font-semibold text-[#16233F]">
+            <h3 className="text-[15px] font-bold text-slate-900">
               {notice.title}
             </h3>
-
             <span
-              className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-              style={{
-                backgroundColor: `${style.color}1A`,
-                color: style.color,
-              }}
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${style.soft}`}
             >
               {style.label}
             </span>
-
-            {/* Pinned Icon */}
-
             {pinned && (
-              <svg
-                className="h-3.5 w-3.5 text-[#B8862E]"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-label="Pinned notice"
-              >
-                <path d="M16 3l5 5-5 5v3l-4-4-6 6-1-1 6-6-4-4h3l5-5z" />
-              </svg>
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-900 ring-1 ring-inset ring-amber-200">
+                <Pin className="h-3 w-3" />
+                Pinned
+              </span>
             )}
           </div>
 
-          {/* Dates */}
-
           {(noticeDate || expiryDate) && (
-            <p className="mt-1 text-xs text-[#8A93A0]">
+            <p className="mt-1 text-xs text-slate-400">
               {noticeDate}
-
-              {expiryDate && (
-                <>
-                  {" "}
-                  · expires {expiryDate}
-                </>
-              )}
+              {expiryDate && <> · expires {expiryDate}</>}
             </p>
           )}
 
-          {/* Description */}
-
           <p
-            className={`mt-2 text-sm text-[#4B5768] ${
+            className={`mt-2 text-sm leading-relaxed text-slate-600 ${
               expanded ? "" : "line-clamp-2"
             }`}
           >
             {notice.description}
           </p>
 
-          {/* Read More */}
-
           {hasLongDescription && (
-            <span className="mt-1 inline-block text-xs font-medium text-[#B8862E]">
+            <span className="mt-1.5 inline-block text-xs font-semibold text-[#b8923f]">
               {expanded ? "Show less" : "Read more"}
             </span>
           )}
-
-          {/* Attachment */}
 
           {notice.attachmentUrl && (
             <a
               href={notice.attachmentUrl}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
-              className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-[#F1F2ED] px-3 py-1.5 text-xs font-medium text-[#16233F] transition hover:bg-[#E7E9E1]"
+              onClick={(event) => event.stopPropagation()}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[#e8e0d0] bg-[#f7f3ea] px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:border-[#c9a24b]/40 hover:bg-[#f0ebe3]"
             >
-              <svg
-                className="h-3.5 w-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"
-                />
-              </svg>
-
+              <Paperclip className="h-3.5 w-3.5 text-[#064e3b]" />
               View attachment
             </a>
           )}
         </div>
 
-        {/* Expand Icon */}
-
-        <svg
-          className={`mt-1 h-4 w-4 shrink-0 text-[#8A93A0] transition-transform ${
+        <ChevronDown
+          className={`mt-1 h-4 w-4 shrink-0 text-slate-400 transition-transform ${
             expanded ? "rotate-180" : ""
           }`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          aria-hidden="true"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
+        />
       </button>
     </div>
   );

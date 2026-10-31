@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { X, FlaskConical, Briefcase, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { createPracticalDirect, ICreatePracticalPayload, PracticalType, updatePractical } from "@/service/Practical/practical.service";
+import {
+  createPracticalDirect,
+  ICreatePracticalPayload,
+  PracticalType,
+  updatePractical,
+} from "@/service/Practical/practical.service";
 
 interface PracticalFormModalProps {
   open: boolean;
@@ -35,28 +40,31 @@ export function PracticalFormModal({
   const isEdit = !!initialData;
   const [loading, setLoading] = useState(false);
   const [type, setType] = useState<PracticalType>(
-    initialData?.type ?? "PRACTICAL",
+    initialData?.type ?? "PRACTICAL"
   );
   const [title, setTitle] = useState(initialData?.title ?? "");
   const [totalMarks, setTotalMarks] = useState(
-    String(initialData?.totalMarks ?? ""),
+    String(initialData?.totalMarks ?? "")
   );
   const [givenDate, setGivenDate] = useState(
-    toInputDate(initialData?.givenDate),
+    toInputDate(initialData?.givenDate)
   );
   const [submissionDeadline, setSubmissionDeadline] = useState(
-    toInputDate(initialData?.submissionDeadline),
+    toInputDate(initialData?.submissionDeadline)
   );
 
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  // Reset form on open/initialData change
+  // Reset form when modal opens / initialData changes
   useEffect(() => {
-    setType(initialData?.type ?? "PRACTICAL");
-    setTitle(initialData?.title ?? "");
-    setTotalMarks(String(initialData?.totalMarks ?? ""));
-    setGivenDate(toInputDate(initialData?.givenDate));
-    setSubmissionDeadline(toInputDate(initialData?.submissionDeadline));
+    if (!open) return;
+    queueMicrotask(() => {
+      setType(initialData?.type ?? "PRACTICAL");
+      setTitle(initialData?.title ?? "");
+      setTotalMarks(String(initialData?.totalMarks ?? ""));
+      setGivenDate(toInputDate(initialData?.givenDate));
+      setSubmissionDeadline(toInputDate(initialData?.submissionDeadline));
+    });
   }, [initialData, open]);
 
   if (!open) return null;
@@ -106,24 +114,25 @@ export function PracticalFormModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={(e) => e.target === overlayRef.current && onClose()}
     >
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="text-lg font-bold text-slate-800">
+      <div className="theme-card w-full max-w-lg overflow-hidden shadow-2xl">
+        <div className="h-1.5 w-full bg-gradient-to-r from-primary to-emerald-500" />
+
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="text-lg font-bold text-foreground">
             {isEdit ? "Edit Practical / Job" : "Create Practical / Job"}
           </h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 px-6 py-5">
-          {/* Type selector */}
+          {/* Type */}
           <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Type
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -135,9 +144,9 @@ export function PracticalFormModal({
                   className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-semibold transition ${
                     type === t
                       ? t === "PRACTICAL"
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        ? "border-sky-500 bg-sky-50 text-sky-700"
                         : "border-violet-500 bg-violet-50 text-violet-700"
-                      : "border-slate-200 text-slate-500 hover:border-slate-300"
+                      : "border-border text-muted-foreground hover:border-primary/40"
                   }`}
                 >
                   {t === "PRACTICAL" ? (
@@ -153,8 +162,8 @@ export function PracticalFormModal({
 
           {/* Title */}
           <div>
-            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Title <span className="text-red-500">*</span>
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Title <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -162,14 +171,14 @@ export function PracticalFormModal({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Lab 1 – Introduction to Circuits"
               required
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-border bg-secondary/40 px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </div>
 
           {/* Total Marks */}
           <div>
-            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Total Marks <span className="text-red-500">*</span>
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Total Marks <span className="text-rose-500">*</span>
             </label>
             <input
               type="number"
@@ -178,32 +187,32 @@ export function PracticalFormModal({
               onChange={(e) => setTotalMarks(e.target.value)}
               placeholder="e.g. 50"
               required
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-xl border border-border bg-secondary/40 px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </div>
 
-          {/* Dates row */}
+          {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Given Date
               </label>
               <input
                 type="date"
                 value={givenDate}
                 onChange={(e) => setGivenDate(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-border bg-secondary/40 px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Deadline
               </label>
               <input
                 type="date"
                 value={submissionDeadline}
                 onChange={(e) => setSubmissionDeadline(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-border bg-secondary/40 px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
             </div>
           </div>
@@ -213,14 +222,14 @@ export function PracticalFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              className="flex-1 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-secondary"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-blue-700 hover:to-indigo-700 disabled:opacity-70"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-primary to-emerald-600 px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/30 transition hover:shadow-lg hover:shadow-primary/40 disabled:opacity-70"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               {isEdit ? "Save Changes" : "Create"}

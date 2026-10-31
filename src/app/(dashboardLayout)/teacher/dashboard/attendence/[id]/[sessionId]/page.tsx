@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { getAttendanceSessionById } from "@/service/attendence/attendence.service";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -23,7 +24,6 @@ export default async function AttendanceSessionDetailPage({
   const { id, sessionId } = await params;
 
   const res = await getAttendanceSessionById(Number(sessionId));
-
   if (!res.success || !res.data) return notFound();
 
   const session = res.data;
@@ -32,77 +32,79 @@ export default async function AttendanceSessionDetailPage({
   const { attendanceRate } = getSessionSummary(records as any);
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
+    <div className="theme-content min-h-screen p-6">
       <div className="mx-auto max-w-4xl space-y-5">
-        {/* Back */}
         <Link
           href={`/teacher/dashboard/attendence/${id}`}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition hover:text-primary"
         >
-          <ArrowLeft size={13} />
+          <ArrowLeft size={14} />
           Back to Sessions
         </Link>
-        {/* Header */}
-        <SessionHeader meta={meta} date={session.date} isLive={false} />
 
-        {/* Summary */}
+        <SessionHeader meta={meta} date={session.date} isLive={false} />
         <SummaryBar records={records as any} />
 
-        {/* Attendance rate card */}
-        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-          <p className="text-sm font-semibold text-slate-700">
-            Overall Attendance Rate
-          </p>
-          <div className="flex items-center gap-3">
-            <div className="h-2 w-40 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className={`h-full rounded-full ${
+        {/* Attendance rate */}
+        <div className="st-row theme-card relative overflow-hidden shadow-[var(--shadow-card)]">
+          <div className="h-1.5 w-full bg-gradient-to-r from-primary to-emerald-500" />
+          <div className="flex items-center justify-between px-5 py-4">
+            <p className="text-sm font-semibold text-foreground">
+              Overall Attendance Rate
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="h-2 w-40 overflow-hidden rounded-full bg-border">
+                <div
+                  className={`h-full rounded-full ${
+                    attendanceRate >= 80
+                      ? "bg-emerald-500"
+                      : attendanceRate >= 60
+                        ? "bg-amber-400"
+                        : "bg-rose-500"
+                  }`}
+                  style={{ width: `${attendanceRate}%` }}
+                />
+              </div>
+              <span
+                className={`text-sm font-black tabular-nums ${
                   attendanceRate >= 80
-                    ? "bg-emerald-500"
+                    ? "text-emerald-600"
                     : attendanceRate >= 60
-                      ? "bg-amber-400"
-                      : "bg-rose-500"
+                      ? "text-amber-600"
+                      : "text-rose-600"
                 }`}
-                style={{ width: `${attendanceRate}%` }}
-              />
+              >
+                {attendanceRate}%
+              </span>
             </div>
-            <span
-              className={`text-sm font-bold ${
-                attendanceRate >= 80
-                  ? "text-emerald-600"
-                  : attendanceRate >= 60
-                    ? "text-amber-600"
-                    : "text-rose-600"
-              }`}
-            >
-              {attendanceRate}%
-            </span>
           </div>
         </div>
 
         {/* Records table */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
-            <p className="text-sm font-semibold text-slate-700">
+        <div className="st-row theme-card relative overflow-hidden shadow-[var(--shadow-card)]">
+          <div className="h-1.5 w-full bg-gradient-to-r from-sky-500 to-blue-400" />
+          <div className="border-b border-border bg-secondary/40 px-5 py-3">
+            <p className="text-sm font-bold text-foreground">
               Student Records{" "}
-              <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+              <span className="ml-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground ring-1 ring-border">
                 {records.length}
               </span>
             </p>
           </div>
+
           {records.length === 0 ? (
-            <div className="py-16 text-center text-sm text-slate-400">
+            <div className="py-16 text-center text-sm text-muted-foreground">
               No records for this session.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-slate-100">
+                  <tr className="border-b border-border">
                     {["#", "Student", "Roll", "Status"].map((h) => (
                       <th
                         key={h}
-                        className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                        className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                       >
                         {h}
                       </th>
@@ -128,9 +130,9 @@ export default async function AttendanceSessionDetailPage({
                     return (
                       <tr
                         key={record.id}
-                        className="border-b border-slate-50 transition-colors hover:bg-indigo-50/30"
+                        className="border-b border-border last:border-0 transition hover:bg-secondary/30"
                       >
-                        <td className="px-5 py-3 text-xs font-medium text-slate-400">
+                        <td className="px-5 py-3 text-xs font-medium text-muted-foreground">
                           {index + 1}
                         </td>
                         <td className="px-5 py-3">
@@ -140,12 +142,12 @@ export default async function AttendanceSessionDetailPage({
                             >
                               {initials}
                             </div>
-                            <span className="text-sm font-semibold text-slate-800">
+                            <span className="text-sm font-semibold text-foreground">
                               {name}
                             </span>
                           </div>
                         </td>
-                        <td className="px-5 py-3 text-sm text-slate-500">
+                        <td className="px-5 py-3 text-sm text-muted-foreground">
                           {record.student?.roll ?? "—"}
                         </td>
                         <td className="px-5 py-3">

@@ -10,7 +10,6 @@ export const metadata = {
 
 const TZ = "Asia/Dhaka";
 
-// Greeting + date are computed on the server in Dhaka time (no hydration mismatch)
 function dhakaNow() {
   const now = new Date();
   const hour =
@@ -49,8 +48,8 @@ export default async function TeacherDashboardPage() {
   const { greeting, today } = dhakaNow();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-amber-50/30">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="theme-content min-h-screen p-6">
+      <div className="mx-auto max-w-7xl">
         {res.success && res.data ? (
           <TeacherDashboardClient
             data={res.data}
@@ -58,14 +57,17 @@ export default async function TeacherDashboardPage() {
             today={today}
           />
         ) : (
-          <div className="mx-auto mt-16 max-w-md rounded-3xl border border-rose-200 bg-rose-50 px-8 py-14 text-center shadow-sm">
-            <p className="text-5xl">😕</p>
-            <h1 className="mt-3 text-lg font-bold text-rose-700">
-              Couldn&apos;t load your dashboard
-            </h1>
-            <p className="mt-1 text-sm text-rose-600">
-              {res.message || "Please refresh the page or try again shortly."}
-            </p>
+          <div className="mx-auto mt-16 max-w-md theme-card overflow-hidden shadow-[var(--shadow-card)]">
+            <div className="h-1.5 w-full bg-gradient-to-r from-rose-500 to-pink-400" />
+            <div className="px-8 py-14 text-center">
+              <p className="text-5xl">😕</p>
+              <h1 className="mt-3 text-lg font-bold text-rose-700">
+                Couldn&apos;t load your dashboard
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {res.message || "Please refresh the page or try again shortly."}
+              </p>
+            </div>
           </div>
         )}
       </div>

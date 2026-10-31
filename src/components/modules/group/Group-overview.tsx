@@ -1,6 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { memo } from 'react';
 
 type Group = {
   id: number;
@@ -20,190 +21,166 @@ type Props = {
   };
 };
 
-const shiftStyles: Record<
-  string,
-  { badge: string; border: string; accent: string }
-> = {
+/* ───────────────────────── Constants ───────────────────────── */
+
+type ShiftStyle = { badge: string; accent: string; glow: string };
+
+const SHIFT_STYLES: Record<string, ShiftStyle> = {
   Morning: {
     badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-    border: 'border-l-emerald-500',
     accent: 'from-emerald-500 to-teal-400',
+    glow: 'group-hover:shadow-emerald-500/20',
   },
   Day: {
     badge: 'bg-sky-50 text-sky-700 ring-sky-200',
-    border: 'border-l-sky-500',
     accent: 'from-sky-500 to-blue-400',
+    glow: 'group-hover:shadow-sky-500/20',
   },
   Evening: {
-    badge: 'bg-amber-50 text-amber-700 ring-amber-200',
-    border: 'border-l-amber-500',
-    accent: 'from-amber-500 to-orange-400',
+    badge: 'bg-amber-50 text-amber-800 ring-gold-soft',
+    accent: 'from-gold to-amber-400',
+    glow: 'group-hover:shadow-amber-500/20',
   },
 };
 
-export default function GroupOverview({ initialData }: Props) {
-  const router = useRouter();
-  const { data: groups = [], total } = initialData;
+const SHIFT_FALLBACK: ShiftStyle = {
+  badge: 'bg-teal-50 text-teal-700 ring-teal-200',
+  accent: 'from-primary to-emerald-500',
+  glow: 'group-hover:shadow-primary/20',
+};
 
-  const goToGroup = (id: number) => {
-    router.push(`group-overview/${id}`);
-  };
+/* ───────────────────────── Icons ───────────────────────── */
+
+const UsersIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+const CapIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 14l9-5-9-5-9 5 9 5z" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/* ───────────────────────── Card ───────────────────────── */
+
+const GroupCard = memo(function GroupCard({ g, index }: { g: Group; index: number }) {
+  const style = SHIFT_STYLES[g.shift?.name] ?? SHIFT_FALLBACK;
 
   return (
-    <div className="min-h-screen bg-slate-50/70 p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div
+      className={`st-row theme-card group relative flex flex-col overflow-hidden shadow-[var(--shadow-card)] ${style.glow}`}
+      style={{ ['--i' as string]: index % 9 }}
+    >
+      {/* Top accent */}
+      <div className={`h-1.5 w-full bg-gradient-to-r ${style.accent}`} />
 
-        {/* ── Header ── */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-              Group Overview
-            </h1>
-            <p className="text-sm text-slate-500 mt-1.5">
-              Manage and monitor all academic groups
-            </p>
-          </div>
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        {/* Top row */}
+        <div className="flex items-center justify-between">
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${style.badge}`}>
+            {g.shift?.name} Shift
+          </span>
+          <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-primary">
+            Session {g.session}
+          </span>
+        </div>
 
-          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-2xl border border-slate-100 shadow-sm">
-            <div className="w-8 h-8 rounded-xl bg-[#006A4E]/10 flex items-center justify-center">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#006A4E"
-                strokeWidth="2"
-              >
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-            </div>
+        {/* Identity */}
+        <div>
+          <h3 className="text-[15px] font-bold leading-snug text-foreground transition-colors duration-300 group-hover:text-primary">
+            {g.currentSemester?.name} Semester · Group {g.name}
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">{g.department?.name}</p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 gap-3 border-t border-border pt-4">
+          <div className="flex items-center gap-2.5 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/60 p-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-card text-emerald-600 shadow-sm transition-transform duration-300 group-hover:scale-110">
+              <UsersIcon size={15} />
+            </span>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                Total Groups
-              </p>
-              <p className="text-lg font-black text-slate-900 leading-none">
-                {total ?? groups.length}
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/70">Students</p>
+              <p className="text-lg font-black leading-none tabular-nums text-foreground">{g._count?.students ?? 0}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-100/60 p-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-card text-amber-600 shadow-sm transition-transform duration-300 group-hover:scale-110">
+              <CapIcon size={15} />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700/70">Teachers</p>
+              <p className="text-lg font-black leading-none tabular-nums text-foreground">{g._count?.teachers ?? 0}</p>
             </div>
           </div>
         </div>
 
-        {/* ── Empty / Loading State ── */}
+        {/* Action */}
+        <Link
+          href={`group-overview/${g.id}`}
+          className="group/btn mt-auto flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary/60 py-2.5 text-sm font-semibold text-primary transition-all duration-200 hover:border-transparent hover:bg-gradient-to-br hover:from-primary hover:to-emerald-600 hover:text-primary-foreground hover:shadow-lg hover:shadow-primary/30 active:scale-95"
+        >
+          View Group
+          <svg
+            width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+            className="transition-transform duration-200 group-hover/btn:translate-x-1"
+          >
+            <polyline points="6 3 11 8 6 13" />
+          </svg>
+        </Link>
+      </div>
+    </div>
+  );
+});
+
+/* ───────────────────────── Main ───────────────────────── */
+
+export default function GroupOverview({ initialData }: Props) {
+  const { data: groups = [], total } = initialData;
+
+  return (
+    <div className="theme-content min-h-screen p-6">
+      <div className="mx-auto max-w-7xl space-y-8">
+        {/* Header */}
+        <div className="st-fade flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <p className="mb-1 bg-gradient-to-r from-primary to-gold bg-clip-text text-xs font-bold uppercase tracking-[0.3em] text-transparent">
+              Dashboard / Groups
+            </p>
+            <h1 className="text-3xl font-black tracking-tight text-foreground">Group Overview</h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">Manage and monitor all academic groups</p>
+          </div>
+
+          <div className="theme-card flex items-center gap-3 px-4 py-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-emerald-600 text-primary-foreground shadow-md shadow-primary/30">
+              <UsersIcon />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Groups</p>
+              <p className="text-xl font-black leading-none tabular-nums text-foreground">{total ?? groups.length}</p>
+            </div>
+          </div>
+        </div>
+
         {groups.length === 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-2xl border border-slate-100 p-5 animate-pulse flex flex-col gap-4 h-52"
-              >
-                <div className="flex justify-between">
-                  <div className="h-5 w-20 bg-slate-100 rounded-full" />
-                  <div className="h-4 w-16 bg-slate-100 rounded" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-5 bg-slate-100 rounded w-3/4" />
-                  <div className="h-4 bg-slate-100 rounded w-1/2" />
-                </div>
-                <div className="flex gap-6 pt-3 border-t border-slate-50">
-                  <div className="h-8 w-12 bg-slate-100 rounded" />
-                  <div className="h-8 w-12 bg-slate-100 rounded" />
-                </div>
-                <div className="mt-auto h-10 bg-slate-100 rounded-xl" />
-              </div>
-            ))}
+          <div className="st-fade theme-card py-24 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-accent text-primary/60 ring-1 ring-gold-soft">
+              <UsersIcon size={28} />
+            </div>
+            <p className="text-lg font-bold text-foreground">No groups found</p>
+            <p className="mt-1 text-sm text-muted-foreground">Groups will appear here once they are created.</p>
           </div>
         ) : (
-          /* ── Group Cards ── */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {groups.map((g) => {
-              const style =
-                shiftStyles[g.shift?.name] ?? {
-                  badge: 'bg-slate-100 text-slate-600 ring-slate-200',
-                  border: 'border-l-slate-400',
-                  accent: 'from-slate-400 to-slate-300',
-                };
-
-              return (
-                <div
-                  key={g.id}
-                  className={`group relative bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-300 overflow-hidden border-l-4 ${style.border} flex flex-col`}
-                >
-                  {/* Top accent line */}
-                  <div
-                    className={`h-1 w-full bg-gradient-to-r ${style.accent} opacity-80`}
-                  />
-
-                  <div className="p-5 flex flex-col flex-1 gap-4">
-                    {/* Top row */}
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ring-1 ${style.badge}`}
-                      >
-                        {g.shift?.name} Shift
-                      </span>
-                      <span className="text-[11px] font-medium text-slate-400">
-                        Session {g.session}
-                      </span>
-                    </div>
-
-                    {/* Identity */}
-                    <div>
-                      <h3 className="font-bold text-[15px] text-slate-900 leading-snug group-hover:text-[#006A4E] transition-colors">
-                        {g.currentSemester?.name} Semester · Group {g.name}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {g.department?.name}
-                      </p>
-                    </div>
-
-                    {/* Stats */}
-                    <div className="flex gap-6 pt-3 border-t border-slate-100">
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">
-                          Students
-                        </p>
-                        <p className="text-lg font-black text-slate-800 tabular-nums">
-                          {g._count?.students ?? 0}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">
-                          Teachers
-                        </p>
-                        <p className="text-lg font-black text-slate-800 tabular-nums">
-                          {g._count?.teachers ?? 0}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Action Button */}
-                    <button
-                      onClick={() => goToGroup(g.id)}
-                      className="mt-auto w-full flex items-center justify-center gap-2 text-sm font-semibold rounded-xl py-2.5 
-                        bg-slate-50 text-slate-600 border border-slate-200
-                        hover:bg-[#006A4E] hover:text-white hover:border-[#006A4E] 
-                        transition-all duration-200 group/btn"
-                    >
-                      View Group
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="transition-transform group-hover/btn:translate-x-0.5"
-                      >
-                        <polyline points="6 3 11 8 6 13" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {groups.map((g, i) => (
+              <GroupCard key={g.id} g={g} index={i} />
+            ))}
           </div>
         )}
       </div>

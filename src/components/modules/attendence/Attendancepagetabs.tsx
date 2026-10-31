@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { ClipboardList, PlusCircle } from "lucide-react";
 import {
   SessionMeta,
@@ -33,15 +33,15 @@ export default function AttendancePageTabs({
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       {/* Tab bar */}
-      <div className="flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+      <div className="flex rounded-xl bg-secondary/50 p-1 ring-1 ring-border">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-all ${
+            className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-all duration-200 ${
               activeTab === key
-                ? "bg-indigo-600 text-white shadow-md"
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-gradient-to-br from-primary to-emerald-600 text-primary-foreground shadow-md shadow-primary/25"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >
             <Icon size={15} />
@@ -50,7 +50,6 @@ export default function AttendancePageTabs({
         ))}
       </div>
 
-      {/* Panel */}
       {activeTab === "take" ? (
         <AttendanceTakeClient
           students={students}

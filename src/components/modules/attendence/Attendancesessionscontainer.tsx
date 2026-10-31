@@ -8,7 +8,7 @@ import AttendanceSessionsListClient from "./Attendancesessionslistclient";
 
 type Props = {
   groupId: number;
-  subjectId?: number; // ← added
+  subjectId?: number;
   meta?: SessionMeta;
 };
 
@@ -21,7 +21,7 @@ export default function AttendanceSessionsContainer({
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   const fetchSessions = useCallback(
@@ -30,7 +30,7 @@ export default function AttendanceSessionsContainer({
       try {
         const res = await getAttendanceSessions({
           groupId,
-          subjectId, // ← added
+          subjectId,
           page,
           limit: 10,
           sortBy: "date",
@@ -44,7 +44,7 @@ export default function AttendanceSessionsContainer({
                   s.subject?.name
                     ?.toLowerCase()
                     .includes(searchQuery.toLowerCase()) ||
-                  s.date?.includes(searchQuery),
+                  s.date?.includes(searchQuery)
               )
             : res.data;
 
@@ -57,12 +57,39 @@ export default function AttendanceSessionsContainer({
         setIsLoading(false);
       }
     },
-    [groupId, subjectId], // ← added subjectId to deps
+    [groupId, subjectId]
   );
 
+  // Effect owns its fetch so setState is not called synchronously in the effect body
   useEffect(() => {
-    fetchSessions(1, search);
-  }, [fetchSessions]);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await getAttendanceSessions({
+          groupId,
+          subjectId,
+          page: 1,
+          limit: 10,
+          sortBy: "date",
+          sortOrder: "desc",
+        });
+        if (cancelled) return;
+        if (res.success) {
+          setSessions(res.data);
+          setTotalPages(res.totalPages);
+          setTotal(res.total);
+          setCurrentPage(1);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId, subjectId]);
 
   const handlePageChange = (page: number) => fetchSessions(page, search);
 
@@ -71,7 +98,7 @@ export default function AttendanceSessionsContainer({
       setSearch(q);
       fetchSessions(1, q);
     },
-    [fetchSessions],
+    [fetchSessions]
   );
 
   return (
