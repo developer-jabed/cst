@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // service/department/department.service.ts
-"use server"
-import { serverFetch } from '@/lib/server-fetch';
+"use server";
+import { serverFetch } from "@/lib/server-fetch";
+import { CACHE } from "@/lib/cache";
 
 export async function getAllDepartments(params?: {
   page?: number;
@@ -11,11 +12,13 @@ export async function getAllDepartments(params?: {
   try {
     const query = new URLSearchParams();
 
-    if (params?.page) query.append('page', String(params.page));
-    if (params?.limit) query.append('limit', String(params.limit));
-    if (params?.searchTerm) query.append('searchTerm', params.searchTerm);
+    if (params?.page) query.append("page", String(params.page));
+    if (params?.limit) query.append("limit", String(params.limit));
+    if (params?.searchTerm) query.append("searchTerm", params.searchTerm);
 
-    const response = await serverFetch.get(`/departments?${query.toString()}`);
+    const response = await serverFetch.get(`/departments?${query.toString()}`, {
+      next: CACHE.departments,
+    });
 
     const result = await response.json();
     return result;
@@ -31,7 +34,9 @@ export async function getAllDepartments(params?: {
 
 export async function getDepartmentById(id: string | number) {
   try {
-    const response = await serverFetch.get(`/departments/${id}`);
+    const response = await serverFetch.get(`/departments/${id}`, {
+      next: CACHE.departments,
+    });
     const result = await response.json();
     return result;
   } catch (error: any) {

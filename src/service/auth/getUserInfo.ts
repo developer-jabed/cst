@@ -5,15 +5,13 @@ import { serverFetch } from "@/lib/server-fetch";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { getCookie } from "./tokenHandlers";
 import { UserInfo } from "@/types/userInterface";
+import { CACHE } from "@/lib/cache";
 
 export const getUserInfo = async (): Promise<UserInfo> => {
   try {
     const response = await serverFetch.get("/auth/me", {
       cache: "force-cache",
-      next: {
-        revalidate: 1800,
-        tags: ["user-info"],
-      },
+      next: CACHE.user,
     });
 
     const result = await response.json();
@@ -56,8 +54,8 @@ export const getUserInfo = async (): Promise<UserInfo> => {
           name: properName,
           email: verifiedToken.email || data.email,
           role: verifiedToken.role || data.role,
-          profilePhoto, // ← added
-          ...data, // keep nested student / teacher / admin
+          profilePhoto,
+          ...data,
         };
       } catch (jwtError) {
         userInfo = {

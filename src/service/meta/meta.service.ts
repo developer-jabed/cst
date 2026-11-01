@@ -3,15 +3,14 @@
 
 import { serverFetch } from "@/lib/server-fetch";
 import { IAdminDashboard } from "@/types/meta.interface";
+import { CACHE } from "@/lib/cache";
 
 export async function getAdminDashboard(): Promise<
   IAdminDashboard | { success: false; message: string }
 > {
   try {
     const response = await serverFetch.get("/meta/admin", {
-      next: {
-        revalidate: 3600, // Cache for 1 hour
-      },
+      next: CACHE.adminDashboard,
     });
 
     const result = await response.json();

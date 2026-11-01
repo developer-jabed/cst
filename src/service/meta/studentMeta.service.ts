@@ -2,12 +2,9 @@
 "use server";
 
 import { serverFetch } from "@/lib/server-fetch";
+import { CACHE } from "@/lib/cache";
 
 // ─── Types (match getStudentDashboard in the backend service) ─────────────────
-// NOTE: the backend currently returns placeholders for overview / attendance /
-// practicals / diploma. Those are typed loosely below — tighten them once the
-// backend shape is final.
-
 export interface IStudentMonthlyAttendance {
   label: string;
   year: number;
@@ -52,10 +49,8 @@ export interface IStudentDashboardResult {
   data: IStudentDashboard | null;
 }
 
-// Backend mount path of dashboardRoutes (e.g. router.use("/meta", dashboardRoutes))
 const DASHBOARD_BASE = "/meta";
 
-// রেসপন্স বডি নিরাপদে পড়ে
 async function parseResponse(response: Response) {
   try {
     return await response.json();
@@ -70,7 +65,9 @@ async function parseResponse(response: Response) {
 // ─── Get Student Dashboard (meta data) ────────────────────────────────────────
 export async function getStudentDashboard(): Promise<IStudentDashboardResult> {
   try {
-    const response = await serverFetch.get(`${DASHBOARD_BASE}/student`);
+    const response = await serverFetch.get(`${DASHBOARD_BASE}/student`, {
+      next: CACHE.studentDashboard,
+    });
     const result = await parseResponse(response);
 
     if (!result?.success) {

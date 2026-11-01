@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
   images: {
@@ -16,13 +17,18 @@ const nextConfig: NextConfig = {
         hostname: "i.postimg.cc",
       },
     ],
+    formats: ["image/avif", "image/webp"],
   },
 
   experimental: {
     serverActions: {
-      bodySizeLimit: "25mb", // 🔥 FIX HERE
+      bodySizeLimit: "25mb",
     },
   },
+
+  compress: true,
 };
 
-export default nextConfig;
+export default withBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+})(nextConfig);

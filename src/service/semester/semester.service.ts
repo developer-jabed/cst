@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // service/semester/semester.service.ts
-"use server"
-import { serverFetch } from '@/lib/server-fetch';
+"use server";
+import { serverFetch } from "@/lib/server-fetch";
+import { CACHE } from "@/lib/cache";
 
 export async function getAllSemesters(params: {
   page?: number;
@@ -12,28 +13,33 @@ export async function getAllSemesters(params: {
 }) {
   try {
     const query = new URLSearchParams();
-    if (params.page) query.append('page', String(params.page));
-    if (params.limit) query.append('limit', String(params.limit));
-    if (params.searchTerm) query.append('searchTerm', params.searchTerm);
-    if (params.departmentId) query.append('departmentId', String(params.departmentId));
-    if (params.shiftId) query.append('shiftId', String(params.shiftId));
+    if (params.page) query.append("page", String(params.page));
+    if (params.limit) query.append("limit", String(params.limit));
+    if (params.searchTerm) query.append("searchTerm", params.searchTerm);
+    if (params.departmentId)
+      query.append("departmentId", String(params.departmentId));
+    if (params.shiftId) query.append("shiftId", String(params.shiftId));
 
-    const response = await serverFetch.get(`/semesters?${query.toString()}`);
+    const response = await serverFetch.get(`/semesters?${query.toString()}`, {
+      next: CACHE.semesters,
+    });
     const result = await response.json();
     return result;
   } catch (error: any) {
-    return { 
-      success: false, 
+    return {
+      success: false,
       message: error.message,
       meta: { page: 1, limit: 10, total: 0 },
-      data: [] 
+      data: [],
     };
   }
 }
 
 export async function getSemesterById(id: string | number) {
   try {
-    const response = await serverFetch.get(`/semesters/${id}`);
+    const response = await serverFetch.get(`/semesters/${id}`, {
+      next: CACHE.semesters,
+    });
     const result = await response.json();
     return result;
   } catch (error: any) {

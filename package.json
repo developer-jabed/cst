@@ -7,9 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "analyze": "cross-env ANALYZE=true next build --webpack",
     "postinstall": "node -e \"if (process.env.NODE_ENV === 'production') console.log('Puppeteer-core setup ready')\""
   },
   "dependencies": {
+    "@next/bundle-analyzer": "^16.4.3",
     "@phosphor-icons/react": "^2.1.10",
     "@sparticuz/chromium-min": "^147.0.0",
     "class-variance-authority": "^0.7.1",
@@ -37,6 +39,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "puppeteer": "^25.10.0",

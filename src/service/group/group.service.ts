@@ -2,7 +2,7 @@
 "use server";
 
 import { serverFetch } from "@/lib/server-fetch";
-
+import { CACHE } from "@/lib/cache";
 
 export async function getAllGroups(params: {
   page?: number;
@@ -20,7 +20,7 @@ export async function getAllGroups(params: {
     // Force high limit when we want ALL groups
     if (params.all) {
       searchParams.set("page", "1");
-      searchParams.set("limit", "100"); // ← max allowed by your helper
+      searchParams.set("limit", "100");
     } else {
       if (params.page) searchParams.set("page", String(params.page));
       if (params.limit) searchParams.set("limit", String(params.limit));
@@ -37,9 +37,9 @@ export async function getAllGroups(params: {
     const query = searchParams.toString();
     const url = query ? `/groups?${query}` : `/groups`;
 
-    console.log("→ Calling URL:", url); // keep temporarily
-
-    const response = await serverFetch.get(url);
+    const response = await serverFetch.get(url, {
+      next: CACHE.groups,
+    });
     const result = await response.json();
 
     return result;
@@ -54,13 +54,14 @@ export async function getAllGroups(params: {
   }
 }
 
-
-
-
-
 export async function getGroupById(id: string | number) {
   try {
-    const response = await serverFetch.get(`/groups/${id}`);
+    const response = await serverFetch.get(`/groups/${id}`, {
+      next: {
+        revalidate: 1800,
+        tags: ["groups", `group-${id}`],
+      },
+    });
     const result = await response.json();
     return result;
   } catch (error: any) {

@@ -2,6 +2,7 @@
 "use server";
 
 import { serverFetch } from "@/lib/server-fetch";
+import { CACHE } from "@/lib/cache";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface IOverviewSummary {
@@ -21,7 +22,6 @@ export interface IOverviewSummary {
   pendingPracticals?: number;
 }
 
-// রেসপন্স বডি নিরাপদে পড়ে
 async function parseResponse(response: Response) {
   try {
     return await response.json();
@@ -36,7 +36,9 @@ async function parseResponse(response: Response) {
 // ─── Get My Overview (Teacher + Student) ──────────────────────────────────────
 export async function getMyOverview() {
   try {
-    const response = await serverFetch.get("/overview/my");
+    const response = await serverFetch.get("/overview/my", {
+      next: CACHE.overview,
+    });
 
     return await parseResponse(response);
   } catch (error: any) {

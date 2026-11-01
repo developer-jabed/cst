@@ -2,6 +2,7 @@
 "use server";
 
 import { serverFetch } from "@/lib/server-fetch";
+import { CACHE } from "@/lib/cache";
 
 // ─── Types (match getTeacherDashboard in the backend service) ─────────────────
 export interface ITeacherDashboardOverview {
@@ -78,10 +79,8 @@ export interface ITeacherDashboardResult {
   data: ITeacherDashboard | null;
 }
 
-// Backend mount path of dashboardRoutes (e.g. router.use("/meta", dashboardRoutes))
 const DASHBOARD_BASE = "/meta";
 
-// রেসপন্স বডি নিরাপদে পড়ে
 async function parseResponse(response: Response) {
   try {
     return await response.json();
@@ -96,7 +95,9 @@ async function parseResponse(response: Response) {
 // ─── Get Teacher Dashboard (meta data) ────────────────────────────────────────
 export async function getTeacherDashboard(): Promise<ITeacherDashboardResult> {
   try {
-    const response = await serverFetch.get(`${DASHBOARD_BASE}/teacher`);
+    const response = await serverFetch.get(`${DASHBOARD_BASE}/teacher`, {
+      next: CACHE.teacherDashboard,
+    });
     const result = await parseResponse(response);
 
     if (!result?.success) {
