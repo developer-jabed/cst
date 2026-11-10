@@ -290,7 +290,7 @@ function StatCard({
   );
 }
 
-function ReportButton({ groupId }: { groupId: number }) {
+function ReportButton({ groupId, semesterOrder }: { groupId: number; semesterOrder: number }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -340,11 +340,11 @@ function ReportButton({ groupId }: { groupId: number }) {
         ) : (
           <>
             <Icon name="download" size={15} />
-            Download Current Semester Report
+            Download Semester {semesterOrder} Report
           </>
         )}
       </button>
-      {error && <p className="text-[11px] text-rose-500">{error}</p>}
+      {error && <p className="max-w-xs text-right text-[11px] text-rose-500">{error}</p>}
     </div>
   );
 }
@@ -361,6 +361,13 @@ export default function GroupDetailClient({ group }: { group: Group }) {
 
   const studentMap = useMemo(() => new Map(students.map((s) => [s.id, s])), [students]);
   const semesters = useMemo(() => [...new Set(results.map((r) => r.semesterName))].sort(), [results]);
+
+  // The PDF report covers the PREVIOUS semester of the group (current order - 1).
+  // The button must NOT depend on group.diplomaResults: after a promotion the new
+  // group may have no results loaded under its own groupId, yet the backend report
+  // can still find them through the students.
+  const reportSemesterOrder = (group.currentSemester?.order ?? 1) - 1;
+  const canDownloadReport = reportSemesterOrder >= 1;
 
   const filteredResults = useMemo(
     () => (activeSem === 'all' ? results : results.filter((r) => r.semesterName === activeSem)),
@@ -551,7 +558,9 @@ export default function GroupDetailClient({ group }: { group: Group }) {
                   </span>
                 ))}
               </div>
-              {results.length > 0 && <ReportButton groupId={group.id} />}
+              {canDownloadReport && (
+                <ReportButton groupId={group.id} semesterOrder={reportSemesterOrder} />
+              )}
             </div>
 
             {/* Semester Filters */}
