@@ -1,14 +1,15 @@
 import HomePage from "@/components/shared/HomePage";
+import HeroSlider from "@/components/shared/HeroSlider";
 
-// ✅ Cache the page for 30 minutes (ISR)
 export const revalidate = 1800;
-
-// Force static rendering for better caching
 export const dynamic = "force-static";
 
 export default function Home() {
   return (
     <div>
+      <div className="relative h-[calc(100vh-80px)] w-full">
+        <HeroSlider />
+      </div>
       <HomePage />
     </div>
   );

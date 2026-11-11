@@ -4,7 +4,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useState, useTransition, useCallback, useMemo } from "react";
 import Image from "next/image";
 
-// ── Palette (matches Course Catalog) ──────────────────────────────────────────
+// ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
   cream: "#faf8f3",
   sand: "#f7f3ea",
@@ -19,7 +19,6 @@ const C = {
   slate: "#475569",
   muted: "#94a3b8",
   rose: "#be123c",
-  amber: "#b45309",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -77,51 +76,65 @@ interface DiplomaResult {
   semester: Semester | null;
   group: Group | null;
 }
-
 interface Props {
   rollResults: DiplomaResult[];
   initialRoll: string;
 }
 
+/** One card = one semester */
+interface SemEntry {
+  order: number;
+  gpa: number | null;
+  status: string;
+  /** true when this card is the semester the result row was published for */
+  isOwn: boolean;
+  result: DiplomaResult;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const GPA_KEYS = ["gpa1", "gpa2", "gpa3", "gpa4", "gpa5", "gpa6", "gpa7"] as const;
+const TOTAL_SEMESTERS = GPA_KEYS.length;
+const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th"];
 
-function nonNullGpas(r: DiplomaResult) {
-  return GPA_KEYS.map((k, i) => ({
-    label: `Sem ${i + 1}`,
-    value: r[k],
-    order: i + 1,
-  })).filter((g) => g.value != null) as { label: string; value: number; order: number }[];
-}
+const gpasOf = (r: DiplomaResult) =>
+  GPA_KEYS.flatMap((k, i) => (r[k] != null ? [{ order: i + 1, value: r[k] as number }] : []));
 
-function getBestGpa(results: DiplomaResult[]): number | null {
-  let best: number | null = null;
+/** Flatten all result rows into one entry per semester (deduped, sorted). */
+function buildEntries(results: DiplomaResult[]): SemEntry[] {
+  const map = new Map<number, SemEntry>();
+
   for (const r of results) {
-    for (const g of nonNullGpas(r)) {
-      if (best === null || g.value > best) best = g.value;
+    const gpas = gpasOf(r);
+    const ownOrder = r.semester?.order ?? gpas.at(-1)?.order ?? null;
+
+    for (const g of gpas) {
+      const isOwn = g.order === ownOrder;
+      const prev = map.get(g.order);
+      if (!prev || (isOwn && !prev.isOwn)) {
+        map.set(g.order, {
+          order: g.order,
+          gpa: g.value,
+          status: isOwn ? r.status : "PASSED",
+          isOwn,
+          result: r,
+        });
+      }
+    }
+
+    // Failed / referred semester with no GPA yet → still show a card
+    if (ownOrder != null && !map.has(ownOrder)) {
+      map.set(ownOrder, { order: ownOrder, gpa: null, status: r.status, isOwn: true, result: r });
     }
   }
-  return best;
+
+  return [...map.values()].sort((a, b) => a.order - b.order);
 }
 
-function countCompletedSemesters(results: DiplomaResult[]): number {
-  const set = new Set<number>();
-  results.forEach((r) => nonNullGpas(r).forEach((g) => set.add(g.order)));
-  return set.size;
-}
-
-function splitBreakdown(r: DiplomaResult) {
-  const list = r.subjectBreakdown ?? [];
-  return {
-    referred: list.filter((s) => s.type === "REFERRED"),
-    failed: list.filter((s) => s.type === "FAILED"),
-    referredCount: list.length
-      ? list.filter((s) => s.type === "REFERRED").length
-      : (r.referredSubjects?.length ?? 0),
-    failedCount: list.length
-      ? list.filter((s) => s.type === "FAILED").length
-      : (r.failedSubjects?.length ?? 0),
-  };
+function gpaColor(v: number) {
+  if (v >= 3.5) return C.green;
+  if (v >= 2.5) return C.teal;
+  if (v >= 2.0) return C.goldDeep;
+  return C.rose;
 }
 
 function getInitials(name?: string) {
@@ -132,13 +145,6 @@ function getInitials(name?: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-}
-
-function gpaColor(value: number) {
-  if (value >= 3.5) return C.green;
-  if (value >= 2.5) return C.teal;
-  if (value >= 2.0) return C.goldDeep;
-  return C.rose;
 }
 
 const STATUS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
@@ -155,72 +161,40 @@ function StatusBadge({ status }: { status: string }) {
   const c = STATUS[status] ?? STATUS.ABSENT;
   return (
     <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "4px 12px",
-        borderRadius: 999,
-        background: c.bg,
-        color: c.text,
-        border: `1px solid ${c.border}`,
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: ".06em",
-        whiteSpace: "nowrap",
-      }}
+      className="rc-badge"
+      style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}` }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.dot, flexShrink: 0 }} />
+      <span className="rc-dot" style={{ background: c.dot }} />
       {status}
     </span>
   );
 }
 
-function GpaChip({ value, label }: { value: number; label: string }) {
+function GpaCircle({ value }: { value: number | null }) {
+  if (value == null) {
+    return (
+      <div className="rc-gpa" style={{ borderColor: C.line, color: C.muted, background: C.sand }}>
+        —
+      </div>
+    );
+  }
   const color = gpaColor(value);
   return (
-    <div style={{ textAlign: "center" }}>
-      <div
-        style={{
-          width: 60,
-          height: 60,
-          borderRadius: "50%",
-          border: `2.5px solid ${color}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: `${color}10`,
-          boxShadow: `0 4px 12px ${color}1f`,
-        }}
-      >
-        <span style={{ fontSize: 14, fontWeight: 800, color, fontVariantNumeric: "tabular-nums" }}>
-          {value.toFixed(2)}
-        </span>
-      </div>
-      <span
-        style={{
-          display: "block",
-          marginTop: 5,
-          fontSize: 10,
-          color: C.muted,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: ".06em",
-        }}
-      >
-        {label}
-      </span>
+    <div
+      className="rc-gpa"
+      style={{ borderColor: color, color, background: `${color}10`, boxShadow: `0 4px 12px ${color}1f` }}
+    >
+      {value.toFixed(2)}
     </div>
   );
 }
 
-function ProgressRing({ completed, total = 7 }: { completed: number; total?: number }) {
+function ProgressRing({ completed, total }: { completed: number; total: number }) {
   const size = 88;
   const stroke = 7;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = Math.min(completed / total, 1);
-  const offset = circumference * (1 - progress);
+  const offset = circumference * (1 - Math.min(completed / total, 1));
 
   return (
     <div style={{ position: "relative", width: size, height: size }}>
@@ -242,83 +216,38 @@ function ProgressRing({ completed, total = 7 }: { completed: number; total?: num
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 0.6s ease" }}
+          style={{ transition: "stroke-dashoffset .6s ease" }}
         />
       </svg>
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <span style={{ fontSize: 20, fontWeight: 800, color: C.emerald, lineHeight: 1 }}>
-          {completed}
-        </span>
+      <div className="rc-ring-center">
+        <span style={{ fontSize: 20, fontWeight: 800, color: C.emerald, lineHeight: 1 }}>{completed}</span>
         <span style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>/ {total}</span>
       </div>
     </div>
   );
 }
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p
-      style={{
-        margin: "0 0 10px",
-        fontSize: 11,
-        color: C.goldDeep,
-        textTransform: "uppercase",
-        letterSpacing: ".18em",
-        fontWeight: 800,
-      }}
-    >
-      {children}
-    </p>
-  );
-}
-
-function GpaTrend({ results }: { results: DiplomaResult[] }) {
-  const points = useMemo(() => {
-    const map = new Map<number, number>();
-    results.forEach((r) => {
-      nonNullGpas(r).forEach((g) => map.set(g.order, g.value));
-    });
-    return Array.from(map.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([order, value]) => ({ order, value }));
-  }, [results]);
-
+function GpaTrend({ entries }: { entries: SemEntry[] }) {
+  const points = entries.filter((e) => e.gpa != null) as (SemEntry & { gpa: number })[];
   if (points.length < 2) return null;
 
-  const max = 4;
-  const min = 0;
-
   return (
-    <div>
-      <Eyebrow>GPA Trend</Eyebrow>
+    <div className="rc-card fu fu2" style={{ padding: 22, marginBottom: 22 }}>
+      <p className="rc-eyebrow">GPA Trend</p>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 84 }}>
         {points.map((p) => {
-          const height = ((p.value - min) / (max - min)) * 100;
-          const color = gpaColor(p.value);
+          const color = gpaColor(p.gpa);
           return (
-            <div
-              key={p.order}
-              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%", justifyContent: "flex-end" }}
-            >
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.ink }}>{p.value.toFixed(2)}</span>
+            <div key={p.order} className="rc-trend-col">
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.ink }}>{p.gpa.toFixed(2)}</span>
               <div
                 style={{
                   width: "100%",
                   maxWidth: 36,
-                  height: `${height}%`,
+                  height: `${(p.gpa / 4) * 100}%`,
                   minHeight: 8,
                   borderRadius: 8,
                   background: `linear-gradient(180deg, ${color}, ${color}aa)`,
-                  transition: "height 0.4s ease",
                 }}
               />
               <span style={{ fontSize: 10, color: C.muted, fontWeight: 700 }}>S{p.order}</span>
@@ -330,136 +259,123 @@ function GpaTrend({ results }: { results: DiplomaResult[] }) {
   );
 }
 
-function SubjectChip({ subject }: { subject: SubjectBreakdownItem }) {
-  const isFailed = subject.type === "FAILED";
-  const color = isFailed ? C.rose : "#8a6a1f";
-  const bg = isFailed ? "#fff7f8" : "#fdf9ee";
-  const border = isFailed ? "#fecdd3" : "#ecd9a6";
+function SubjectGroup({
+  title,
+  color,
+  items,
+  failed,
+}: {
+  title: string;
+  color: string;
+  items: SubjectBreakdownItem[];
+  failed: boolean;
+}) {
+  if (!items.length) return null;
+  const bg = failed ? "#fff7f8" : "#fdf9ee";
+  const border = failed ? "#fecdd3" : "#ecd9a6";
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        background: bg,
-        border: `1px solid ${border}`,
-        borderRadius: 12,
-        padding: "8px 14px",
-      }}
-    >
-      <span
-        style={{
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-          fontSize: 12,
-          fontWeight: 700,
-          color,
-          background: "#fff",
-          border: `1px solid ${border}`,
-          borderRadius: 8,
-          padding: "2px 8px",
-          flexShrink: 0,
-        }}
-      >
-        {subject.code}
-      </span>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{subject.name}</div>
-        {subject.semesterName && (
-          <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginTop: 1 }}>
-            {subject.semesterName} Semester
+    <div>
+      <p className="rc-sub-title" style={{ color }}>
+        {title} ({items.length})
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {items.map((s) => (
+          <div key={s.code} className="rc-subject" style={{ background: bg, border: `1px solid ${border}` }}>
+            <span className="rc-code" style={{ color, border: `1px solid ${border}` }}>
+              {s.code}
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{s.name}</div>
+              {s.semesterName && (
+                <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginTop: 1 }}>
+                  {s.semesterName} Semester
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
 }
 
-function SubjectBreakdownBlock({ r }: { r: DiplomaResult }) {
-  const { referred, failed } = splitBreakdown(r);
-  if (!referred.length && !failed.length) return null;
+function SemesterCard({ entry, index }: { entry: SemEntry; index: number }) {
+  const { order, gpa, status, isOwn, result: r } = entry;
+  const dot = STATUS[status]?.dot ?? C.muted;
+
+  const { failed, referred } = useMemo(() => {
+    if (!isOwn) return { failed: [], referred: [] };
+    const list = r.subjectBreakdown ?? [];
+    return {
+      failed: list.filter((s) => s.type === "FAILED"),
+      referred: list.filter((s) => s.type === "REFERRED"),
+    };
+  }, [isOwn, r.subjectBreakdown]);
+
+  const hasIssues = failed.length > 0 || referred.length > 0;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      {failed.length > 0 && (
-        <div>
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontSize: 11,
-              color: C.rose,
-              textTransform: "uppercase",
-              letterSpacing: ".1em",
-              fontWeight: 800,
-            }}
-          >
-            Failed Subjects ({failed.length})
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {failed.map((s) => (
-              <SubjectChip key={`f-${s.code}`} subject={s} />
-            ))}
+    <div className="rc-card rc-sem fu" style={{ animationDelay: `${index * 0.05}s` }}>
+      <div style={{ display: "flex", alignItems: "stretch" }}>
+        <span style={{ width: 6, flexShrink: 0, background: dot }} />
+        <div style={{ padding: 22, flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span className="rc-sem-pill">Semester {ORDINALS[order - 1] ?? order}</span>
+                <StatusBadge status={status} />
+              </div>
+
+              {isOwn && (
+                <div className="rc-meta">
+                  <span>
+                    Exam Year: <strong>{r.examYear}</strong>
+                  </span>
+                  <span>
+                    Regulation: <strong>{r.regulation}</strong>
+                  </span>
+                  {r.group?.name && (
+                    <span>
+                      Group: <strong>{r.group.name}</strong>
+                      {r.group.session && ` (${r.group.session})`}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div style={{ textAlign: "center", flexShrink: 0 }}>
+              <GpaCircle value={gpa} />
+              <span className="rc-gpa-label">GPA</span>
+            </div>
           </div>
+
+          {hasIssues && (
+            <div className="rc-issues">
+              <SubjectGroup title="Failed Subjects" color={C.rose} items={failed} failed />
+              <SubjectGroup title="Referred Subjects" color="#8a6a1f" items={referred} failed={false} />
+            </div>
+          )}
         </div>
-      )}
-      {referred.length > 0 && (
-        <div>
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontSize: 11,
-              color: "#8a6a1f",
-              textTransform: "uppercase",
-              letterSpacing: ".1em",
-              fontWeight: 800,
-            }}
-          >
-            Referred Subjects ({referred.length})
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {referred.map((s) => (
-              <SubjectChip key={`r-${s.code}`} subject={s} />
-            ))}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
 
-// ── Avatar (photo + elegant fallback) ─────────────────────────────────────────
-function StudentAvatar({
-  name,
-  photo,
-  size = 64,
-}: {
-  name?: string;
-  photo?: string | null;
-  size?: number;
-}) {
-  const initials = getInitials(name);
+function StudentAvatar({ name, photo, size = 72 }: { name?: string; photo?: string | null; size?: number }) {
+  const base = {
+    width: size,
+    height: size,
+    borderRadius: 18,
+    flexShrink: 0,
+    border: `3px solid ${C.gold}`,
+  } as const;
 
   if (photo) {
     return (
-      <div
-        style={{
-          position: "relative",
-          width: size,
-          height: size,
-          borderRadius: 18,
-          overflow: "hidden",
-          flexShrink: 0,
-          boxShadow: "0 8px 20px rgba(6,78,59,.22)",
-          border: `3px solid ${C.gold}`,
-        }}
-      >
-        <Image
-          src={photo}
-          alt={name || "Student"}
-          fill
-          className="object-cover"
-          sizes={`${size}px`}
-        />
+      <div style={{ ...base, position: "relative", overflow: "hidden", boxShadow: "0 8px 20px rgba(6,78,59,.22)" }}>
+        <Image src={photo} alt={name || "Student"} fill className="object-cover" sizes={`${size}px`} />
       </div>
     );
   }
@@ -467,9 +383,7 @@ function StudentAvatar({
   return (
     <div
       style={{
-        width: size,
-        height: size,
-        borderRadius: 18,
+        ...base,
         background: `linear-gradient(135deg,${C.emerald},${C.teal})`,
         display: "flex",
         alignItems: "center",
@@ -478,12 +392,20 @@ function StudentAvatar({
         fontWeight: 800,
         color: "#fff",
         boxShadow: "0 8px 20px rgba(6,78,59,.25)",
-        border: `3px solid ${C.gold}`,
-        flexShrink: 0,
         letterSpacing: "-0.5px",
       }}
     >
-      {initials}
+      {getInitials(name)}
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
+  return (
+    <div className="rc-card" style={{ padding: "72px 32px", textAlign: "center" }}>
+      <div className="rc-empty-icon">{icon}</div>
+      <p style={{ color: C.ink, fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>{title}</p>
+      <p style={{ color: C.muted, fontSize: 14.5, margin: 0 }}>{children}</p>
     </div>
   );
 }
@@ -496,36 +418,37 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
   const [isPending, startTransition] = useTransition();
   const [rollInput, setRollInput] = useState(initialRoll);
 
-  const pushParams = useCallback(
-    (updates: Record<string, string>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      Object.entries(updates).forEach(([k, v]) =>
-        v ? params.set(k, v) : params.delete(k)
-      );
-      startTransition(() => router.push(`${pathname}?${params.toString()}`));
-    },
-    [pathname, router, searchParams]
-  );
+  const handleSearch = useCallback(() => {
+    const roll = rollInput.trim();
+    if (!roll) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("roll", roll);
+    startTransition(() => router.push(`${pathname}?${params.toString()}`));
+  }, [rollInput, searchParams, pathname, router]);
 
-  const handleSearch = () => {
-    if (!rollInput.trim()) return;
-    pushParams({ roll: rollInput.trim() });
-  };
+  const entries = useMemo(() => buildEntries(rollResults), [rollResults]);
 
   const stats = useMemo(() => {
-    if (!rollResults.length) return null;
-    const completed = countCompletedSemesters(rollResults);
-    const failedRows = rollResults.filter((r) => r.status === "FAILED").length;
-    const best = getBestGpa(rollResults);
+    const gpas = entries.flatMap((e) => (e.gpa != null ? [e.gpa] : []));
     return {
-      completed,
-      passed: completed,
-      failed: failedRows,
-      best,
+      completed: gpas.length,
+      passed: entries.filter((e) => e.status === "PASSED").length,
+      failed: entries.filter((e) => e.status === "FAILED").length,
+      best: gpas.length ? Math.max(...gpas) : null,
+      avg: gpas.length ? gpas.reduce((a, b) => a + b, 0) / gpas.length : null,
     };
-  }, [rollResults]);
+  }, [entries]);
 
-  const student = rollResults[0]?.student;
+  const first = rollResults[0];
+  const student = first?.student;
+
+  const statCards = [
+    { label: "Semesters", value: stats.completed, color: C.emerald, bar: C.emerald },
+    { label: "Passed", value: stats.passed, color: C.green, bar: C.green },
+    { label: "Failed", value: stats.failed, color: C.rose, bar: "#f43f5e" },
+    { label: "Best GPA", value: stats.best?.toFixed(2) ?? "—", color: C.goldDeep, bar: C.gold },
+    { label: "Average CGPA", value: stats.avg?.toFixed(2) ?? "—", color: C.teal, bar: C.teal },
+  ];
 
   return (
     <>
@@ -538,11 +461,29 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
         .rc-input{font:inherit;background:#fff;border:1px solid ${C.line};border-radius:12px;color:#1e293b;padding:12px 16px;font-size:15px;width:100%;outline:none;transition:border-color .2s,box-shadow .2s;box-shadow:0 1px 2px rgba(0,0,0,.04)}
         .rc-input:focus{border-color:${C.gold};box-shadow:0 0 0 3px rgba(201,162,75,.2)}
         .rc-input::placeholder{color:${C.muted}}
-        .rc-btn{font:inherit;border:none;border-radius:12px;padding:12px 26px;font-size:14.5px;font-weight:700;cursor:pointer;transition:all .18s;display:inline-flex;align-items:center;justify-content:center;gap:8px}
-        .rc-btn-primary{background:linear-gradient(135deg,${C.emerald},${C.teal});color:#fff;box-shadow:0 4px 14px rgba(6,78,59,.25)}
-        .rc-btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px rgba(6,78,59,.32)}
-        .rc-btn-primary:disabled{opacity:.65;cursor:not-allowed;transform:none}
+        .rc-btn{font:inherit;border:none;border-radius:12px;padding:12px 26px;font-size:14.5px;font-weight:700;cursor:pointer;transition:all .18s;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,${C.emerald},${C.teal});color:#fff;box-shadow:0 4px 14px rgba(6,78,59,.25)}
+        .rc-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px rgba(6,78,59,.32)}
+        .rc-btn:disabled{opacity:.65;cursor:not-allowed}
         .rc-sem:hover{background:${C.cream}}
+        .rc-eyebrow{margin:0 0 10px;font-size:11px;color:${C.goldDeep};text-transform:uppercase;letter-spacing:.18em;font-weight:800}
+        .rc-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.06em;white-space:nowrap}
+        .rc-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+        .rc-gpa{width:64px;height:64px;border-radius:50%;border:2.5px solid;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+        .rc-gpa-label{display:block;margin-top:5px;font-size:10px;color:${C.muted};font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+        .rc-ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+        .rc-trend-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end}
+        .rc-sem-pill{background:${C.sand};color:${C.emerald};border:1px solid ${C.line};border-radius:10px;padding:5px 14px;font-size:13.5px;font-weight:800}
+        .rc-meta{margin-top:10px;font-size:13.5px;color:#64748b;display:flex;flex-wrap:wrap;gap:4px 16px}
+        .rc-meta strong{color:#334155}
+        .rc-issues{display:grid;gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid ${C.lineSoft}}
+        .rc-sub-title{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+        .rc-subject{display:flex;align-items:center;gap:10px;border-radius:12px;padding:8px 14px}
+        .rc-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:700;background:#fff;border-radius:8px;padding:2px 8px;flex-shrink:0}
+        .rc-stat{padding:16px 18px 16px 22px;display:flex;flex-direction:column;justify-content:center}
+        .rc-stat-bar{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:5px;height:36px;border-radius:999px}
+        .rc-stat-label{margin:0;font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:.1em;font-weight:700}
+        .rc-stat-value{margin:5px 0 0;font-size:26px;font-weight:800}
+        .rc-empty-icon{width:64px;height:64px;border-radius:18px;background:${C.sand};display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px}
         @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         .fu{animation:fadeUp .35s ease both}
         .fu1{animation-delay:.05s}.fu2{animation-delay:.1s}
@@ -573,12 +514,11 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
                 fontWeight: 700,
                 margin: "8px 0 0",
                 letterSpacing: "-.5px",
-                color: "#0f172a",
               }}
             >
               Diploma Results Portal
             </h1>
-            <p style={{ color: "#475569", fontSize: 15, margin: "8px 0 0", maxWidth: 440 }}>
+            <p style={{ color: C.slate, fontSize: 15, margin: "8px 0 0", maxWidth: 440 }}>
               Enter your roll number to view semester-wise results.
             </p>
           </div>
@@ -595,7 +535,7 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
                 onChange={(e) => setRollInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
-              <button className="rc-btn rc-btn-primary" onClick={handleSearch} disabled={isPending}>
+              <button className="rc-btn" onClick={handleSearch} disabled={isPending}>
                 {isPending ? (
                   <>
                     <span className="spinner" /> Searching…
@@ -609,60 +549,19 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
 
           {/* Empty states */}
           {!initialRoll && (
-            <div className="rc-card" style={{ padding: "72px 32px", textAlign: "center" }}>
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 18,
-                  background: C.sand,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 16px",
-                  fontSize: 30,
-                }}
-              >
-                🎓
-              </div>
-              <p style={{ color: C.ink, fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>
-                Search Student Results
-              </p>
-              <p style={{ color: C.muted, fontSize: 14.5, margin: 0 }}>
-                Enter a roll number above to view semester-wise results
-              </p>
-            </div>
+            <EmptyState icon="🎓" title="Search Student Results">
+              Enter a roll number above to view semester-wise results
+            </EmptyState>
           )}
 
           {initialRoll && rollResults.length === 0 && (
-            <div className="rc-card" style={{ padding: "72px 32px", textAlign: "center" }}>
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 18,
-                  background: C.sand,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 16px",
-                  fontSize: 30,
-                }}
-              >
-                📭
-              </div>
-              <p style={{ color: C.ink, fontSize: 18, fontWeight: 700, margin: "0 0 6px" }}>
-                No Results Found
-              </p>
-              <p style={{ color: C.muted, fontSize: 14.5, margin: 0 }}>
-                No results found for roll{" "}
-                <strong style={{ color: C.emerald }}>{initialRoll}</strong>
-              </p>
-            </div>
+            <EmptyState icon="📭" title="No Results Found">
+              No results found for roll <strong style={{ color: C.emerald }}>{initialRoll}</strong>
+            </EmptyState>
           )}
 
           {/* Results */}
-          {rollResults.length > 0 && stats && (
+          {first && (
             <div>
               {/* Student banner */}
               <div className="rc-card fu" style={{ marginBottom: 18 }}>
@@ -677,22 +576,16 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
                     background: `linear-gradient(135deg,#ffffff 0%,${C.sand} 100%)`,
                   }}
                 >
-                  <StudentAvatar name={student?.name} photo={student?.profilePhoto} size={72} />
+                  <StudentAvatar name={student?.name} photo={student?.profilePhoto} />
 
                   <div style={{ flex: 1, minWidth: 180 }}>
-                    <p
-                      style={{
-                        margin: 0,
-                        fontWeight: 800,
-                        fontSize: 21,
-                        color: C.ink,
-                        letterSpacing: "-0.3px",
-                      }}
-                    >
-                      {student?.name}
-                    </p>
+                    {student?.name && (
+                      <p style={{ margin: 0, fontWeight: 800, fontSize: 21, letterSpacing: "-0.3px" }}>
+                        {student.name}
+                      </p>
+                    )}
                     <p style={{ margin: "5px 0 0", fontSize: 14, color: "#64748b" }}>
-                      Roll: <strong style={{ color: C.emerald }}>{rollResults[0].roll}</strong>
+                      Roll: <strong style={{ color: C.emerald }}>{first.roll}</strong>
                       {student?.registration && (
                         <>
                           {" "}
@@ -701,13 +594,13 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
                       )}
                     </p>
                     <p style={{ margin: "6px 0 0", fontSize: 13, color: C.muted }}>
-                      {rollResults[0].instituteName}
+                      {first.instituteName}
                       <span style={{ margin: "0 6px", opacity: 0.5 }}>•</span>
-                      Code: {rollResults[0].instituteCode}
+                      Code: {first.instituteCode}
                     </p>
                   </div>
 
-                  <ProgressRing completed={stats.completed} />
+                  <ProgressRing completed={stats.completed} total={TOTAL_SEMESTERS} />
                 </div>
               </div>
 
@@ -721,189 +614,24 @@ export default function ResultsByRoll({ rollResults, initialRoll }: Props) {
                   marginBottom: 20,
                 }}
               >
-                {[
-                  { label: "Semesters", value: stats.completed, color: C.emerald, bar: C.emerald },
-                  { label: "Passed", value: stats.passed, color: C.green, bar: C.green },
-                  { label: "Failed", value: stats.failed, color: C.rose, bar: "#f43f5e" },
-                  {
-                    label: "Best GPA",
-                    value: stats.best != null ? stats.best.toFixed(2) : "—",
-                    color: C.goldDeep,
-                    bar: C.gold,
-                  },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className="rc-card"
-                    style={{
-                      padding: "16px 18px 16px 22px",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <span
-                      style={{
-                        position: "absolute",
-                        left: 10,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        width: 5,
-                        height: 36,
-                        borderRadius: 999,
-                        background: s.bar,
-                      }}
-                    />
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: 11,
-                        color: C.muted,
-                        textTransform: "uppercase",
-                        letterSpacing: ".1em",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {s.label}
-                    </p>
-                    <p style={{ margin: "5px 0 0", fontSize: 26, fontWeight: 800, color: s.color }}>
+                {statCards.map((s) => (
+                  <div key={s.label} className="rc-card rc-stat">
+                    <span className="rc-stat-bar" style={{ background: s.bar }} />
+                    <p className="rc-stat-label">{s.label}</p>
+                    <p className="rc-stat-value" style={{ color: s.color }}>
                       {s.value}
                     </p>
                   </div>
                 ))}
               </div>
 
-              {/* GPA Trend */}
-              <div className="rc-card fu fu2" style={{ padding: 22, marginBottom: 22 }}>
-                <GpaTrend results={rollResults} />
-              </div>
+              <GpaTrend entries={entries} />
 
-              {/* Semester cards */}
+              {/* One card per semester */}
               <div style={{ display: "grid", gap: 16 }}>
-                {rollResults.map((r, i) => {
-                  const allGpas = nonNullGpas(r);
-                  const { referredCount, failedCount } = splitBreakdown(r);
-                  const hasIssues = referredCount > 0 || failedCount > 0;
-                  const dot = STATUS[r.status]?.dot ?? C.muted;
-
-                  return (
-                    <div
-                      key={r.id}
-                      className="rc-card rc-sem fu"
-                      style={{ animationDelay: `${i * 0.04}s` }}
-                    >
-                      <div style={{ display: "flex", alignItems: "stretch" }}>
-                        <span
-                          style={{
-                            width: 6,
-                            flexShrink: 0,
-                            background: dot,
-                          }}
-                        />
-                        <div style={{ padding: 22, flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: 16,
-                              alignItems: "flex-start",
-                              marginBottom: hasIssues || allGpas.length > 1 ? 16 : 0,
-                            }}
-                          >
-                            <div style={{ flex: 1, minWidth: 180 }}>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 10,
-                                  marginBottom: 10,
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    background: C.sand,
-                                    color: C.emerald,
-                                    border: `1px solid ${C.line}`,
-                                    borderRadius: 10,
-                                    padding: "5px 14px",
-                                    fontSize: 13.5,
-                                    fontWeight: 800,
-                                  }}
-                                >
-                                  Semester {r.semester?.name ?? r.semesterName}
-                                </span>
-                                <StatusBadge status={r.status} />
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: 13.5,
-                                  color: "#64748b",
-                                  display: "flex",
-                                  flexWrap: "wrap",
-                                  gap: "4px 16px",
-                                }}
-                              >
-                                <span>
-                                  Exam Year: <strong style={{ color: "#334155" }}>{r.examYear}</strong>
-                                </span>
-                                <span>
-                                  Regulation: <strong style={{ color: "#334155" }}>{r.regulation}</strong>
-                                </span>
-                                <span>
-                                  Group: <strong style={{ color: "#334155" }}>{r.group?.name}</strong> (
-                                  {r.group?.session})
-                                </span>
-                              </div>
-                            </div>
-
-                            <div style={{ display: "flex", gap: 12, flexShrink: 0, flexWrap: "wrap" }}>
-                              {allGpas.map((g) => (
-                                <GpaChip key={g.label} value={g.value} label={g.label} />
-                              ))}
-                            </div>
-                          </div>
-
-                          {hasIssues && (
-                            <div
-                              style={{
-                                marginBottom: allGpas.length > 1 ? 14 : 0,
-                                paddingBottom: allGpas.length > 1 ? 14 : 0,
-                                borderBottom: allGpas.length > 1 ? `1px solid ${C.lineSoft}` : "none",
-                              }}
-                            >
-                              <SubjectBreakdownBlock r={r} />
-                            </div>
-                          )}
-
-                          {allGpas.length > 1 && (
-                            <div>
-                              <Eyebrow>All GPA Records</Eyebrow>
-                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                {allGpas.map((g) => (
-                                  <span
-                                    key={g.label}
-                                    style={{
-                                      background: C.sand,
-                                      border: `1px solid ${C.line}`,
-                                      borderRadius: 10,
-                                      padding: "6px 14px",
-                                      fontSize: 13,
-                                      fontWeight: 700,
-                                      color: C.ink,
-                                    }}
-                                  >
-                                    {g.label}: {g.value.toFixed(2)}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {entries.map((e, i) => (
+                  <SemesterCard key={e.order} entry={e} index={i} />
+                ))}
               </div>
             </div>
           )}
